@@ -140,7 +140,7 @@ For a complete list, see `requirements.txt`.
 
 ## License
 
-[Your chosen license here]
+[Data Panther]
 
 ---
 
