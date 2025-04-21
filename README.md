@@ -2,7 +2,7 @@
 
 A powerful Retrieval-Augmented Generation (RAG) chatbot application with a clean, modern interface styled for rac (Saudi Telecom Company). This application enables users to upload documents (PDF, DOCX), create knowledge bases, and interact with the content through a conversational AI interface.
 
-![ RAG Chatbot](https://placeholder-for-screenshot.png)
+![ RAG Chatbot](https://raw.githubusercontent.com/syedazharmbnr1/rag-chatbot/refs/heads/main/image.png?token=GHSAT0AAAAAAC64DJZX3IG6FAFD5ISXOJ3K2AGJZQA)
 
 ## Features
 
