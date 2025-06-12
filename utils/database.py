@@ -1,285 +1,299 @@
-"""Database operations for the RAG Chatbot."""
-
-import os
-import sqlite3
-from datetime import datetime
+import psycopg2
+from psycopg2 import IntegrityError, sql
+from urllib.parse import urlparse
 from typing import List, Dict, Any, Optional, Tuple
 
-def init_database():
-    """Initialize the SQLite database with required tables."""
-    # Create necessary directories
-    os.makedirs("db", exist_ok=True)
-    os.makedirs("FAISS_Index", exist_ok=True)
-    
-    db_path = "db/chat_history.db"
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    
-    # Create conversations table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS conversations (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )
-    ''')
-    
-    # Create messages table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS messages (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        conversation_id INTEGER NOT NULL,
-        role TEXT NOT NULL,
-        content TEXT NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (conversation_id) REFERENCES conversations (id)
-    )
-    ''')
-    
-    # Create sources table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS sources (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        message_id INTEGER NOT NULL,
-        source_document TEXT NOT NULL,
-        page_number INTEGER,
-        score REAL,
-        FOREIGN KEY (message_id) REFERENCES messages (id)
-    )
-    ''')
-    
-    # Create settings table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS settings (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        key TEXT UNIQUE NOT NULL,
-        value TEXT NOT NULL
-    )
-    ''')
-    
-    # Create knowledge_bases table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS knowledge_bases (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        name TEXT UNIQUE NOT NULL,
-        description TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        document_count INTEGER DEFAULT 0,
-        embedding_model TEXT NOT NULL,
-        chunking_strategy TEXT NOT NULL
-    )
-    ''')
-    
-    # Create documents table
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS documents (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        knowledge_base_id INTEGER NOT NULL,
-        filename TEXT NOT NULL,
-        document_type TEXT NOT NULL,
-        page_count INTEGER NOT NULL,
-        chunk_count INTEGER NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (knowledge_base_id) REFERENCES knowledge_bases (id)
-    )
-    ''')
-    
-    conn.commit()
-    conn.close()
-    
-    return db_path
+DATABASE_URL = "postgresql://postgres:Kkiraak1234@localhost:5432/chatbot-database"  # Update this accordingly
 
-def get_conversations() -> List[Tuple[int, str, str]]:
-    """Get all conversations from the database."""
-    conn = sqlite3.connect("db/chat_history.db")
+def create_database_if_not_exists_from_url(database_url):
+    try:
+        parsed_url = urlparse(database_url)
+        db_name = parsed_url.path.lstrip('/')
+        user = parsed_url.username
+        password = parsed_url.password
+        host = parsed_url.hostname
+        port = parsed_url.port or 5432
+
+        # Connect to default postgres database
+        default_conn = psycopg2.connect(
+            dbname='postgres',
+            user=user,
+            password=password,
+            host=host,
+            port=port
+        )
+        default_conn.autocommit = True
+        cur = default_conn.cursor()
+
+        # Check if database exists
+        cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (db_name,))
+        exists = cur.fetchone()
+
+        if not exists:
+            cur.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(db_name)))
+            print(f"✅ Database '{db_name}' created.")
+        else:
+            print(f"ℹ️ Database '{db_name}' already exists.")
+
+        cur.close()
+        default_conn.close()
+        return True
+
+    except Exception as e:
+        print(f"❌ Error checking/creating database: {e}")
+        return False
+
+def create_connection():
+    """Create database connection with better error handling"""
+    if create_database_if_not_exists_from_url(DATABASE_URL):
+        try:
+            conn = psycopg2.connect(DATABASE_URL)
+            print("✅ Successfully connected to database")
+            return conn
+        except psycopg2.Error as e:
+            print(f"❌ PostgreSQL connection error: {e}")
+            return None
+        except Exception as e:
+            print(f"❌ Unexpected connection error: {e}")
+            return None
+    else:
+        print("❌ Could not ensure database exists.")
+        return None
+
+def init_database():
+    """Initialize database tables with proper error handling"""
+    conn = create_connection()
+
+    # Check connection BEFORE using it
+    if conn is None:
+        print("❌ Failed to connect to database.")
+        raise Exception("Database connection failed")
+
+    try:
+        cursor = conn.cursor()
+
+        # Create tables
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS conversations (
+            id SERIAL PRIMARY KEY,
+            title TEXT NOT NULL,
+            created_by TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        ''')
+
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS messages (
+            id SERIAL PRIMARY KEY,
+            conversation_id INTEGER NOT NULL REFERENCES conversations(id),
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            user_name TEXT,  -- ADD THIS LINE
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        ''')
+
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sources (
+            id SERIAL PRIMARY KEY,
+            message_id INTEGER NOT NULL REFERENCES messages(id),
+            source_document TEXT NOT NULL,
+            page_number INTEGER,
+            score REAL,
+            kb_name TEXT
+        );
+        ''')
+
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS settings (
+            id SERIAL PRIMARY KEY,
+            key TEXT UNIQUE NOT NULL,
+            value TEXT NOT NULL
+        );
+        ''')
+
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS knowledge_bases (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            document_count INTEGER DEFAULT 0,
+            embedding_model TEXT NOT NULL,
+            chunking_strategy TEXT NOT NULL
+        );
+        ''')
+
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS documents (
+            id SERIAL PRIMARY KEY,
+            knowledge_base_id INTEGER NOT NULL REFERENCES knowledge_bases(id),
+            filename TEXT NOT NULL,
+            document_type TEXT NOT NULL,
+            page_count INTEGER NOT NULL,
+            chunk_count INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        ''')
+
+        conn.commit()
+        cursor.close()
+        print("✅ Database tables initialized successfully")
+
+    except Exception as e:
+        print(f"❌ Error creating tables: {e}")
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def get_conversations(user_name: str = None) -> List[Tuple[int, str, str]]:
+    conn = create_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, title, created_at FROM conversations ORDER BY last_updated DESC")
+
+    if user_name == "admin":
+        # Admin sees all conversations
+        cursor.execute("""
+        SELECT id, title, created_at 
+        FROM conversations 
+        ORDER BY last_updated DESC
+        """)
+    elif user_name:
+        # Regular users see only their conversations
+        cursor.execute("""
+        SELECT id, title, created_at 
+        FROM conversations 
+        WHERE created_by = %s 
+        ORDER BY last_updated DESC
+        """, (user_name,))
+    else:
+        # Fallback - no conversations
+        return []
+
     conversations = cursor.fetchall()
     conn.close()
     return conversations
 
-def create_conversation(title="New Chat") -> int:
-    """Create a new conversation and return its ID."""
-    conn = sqlite3.connect("db/chat_history.db")
+def create_conversation(title="New Chat", created_by: str = "admin") -> int:
+    conn = create_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO conversations (title) VALUES (?)", (title,))
-    conversation_id = cursor.lastrowid
+    cursor.execute("""
+    INSERT INTO conversations (title, created_by) 
+    VALUES (%s, %s) RETURNING id
+    """, (title, created_by))
+    conversation_id = cursor.fetchone()[0]
     conn.commit()
     conn.close()
     return conversation_id
 
-def get_messages(conversation_id: int) -> List[Tuple[int, str, str, str]]:
-    """Get all messages for a specific conversation."""
-    conn = sqlite3.connect("db/chat_history.db")
+def get_messages(conversation_id: int) -> List[Tuple[int, str, str, str, str]]:
+    conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("""
-    SELECT id, role, content, created_at 
+    SELECT id, role, content, user_name, created_at 
     FROM messages 
-    WHERE conversation_id = ? 
+    WHERE conversation_id = %s 
     ORDER BY created_at
     """, (conversation_id,))
     messages = cursor.fetchall()
     conn.close()
     return messages
 
-def add_message(conversation_id: int, role: str, content: str) -> int:
-    """Add a new message to a conversation and return its ID."""
-    conn = sqlite3.connect("db/chat_history.db")
+def add_message(conversation_id: int, role: str, content: str, user_name: str = None) -> int:
+    conn = create_connection()
     cursor = conn.cursor()
-    
-    # Add message
     cursor.execute("""
-    INSERT INTO messages (conversation_id, role, content) 
-    VALUES (?, ?, ?)
-    """, (conversation_id, role, content))
-    message_id = cursor.lastrowid
-    
-    # Update conversation last_updated timestamp
+    INSERT INTO messages (conversation_id, role, content, user_name) 
+    VALUES (%s, %s, %s, %s) RETURNING id
+    """, (conversation_id, role, content, user_name))
+    message_id = cursor.fetchone()[0]
     cursor.execute("""
     UPDATE conversations 
     SET last_updated = CURRENT_TIMESTAMP 
-    WHERE id = ?
+    WHERE id = %s
     """, (conversation_id,))
-    
     conn.commit()
     conn.close()
     return message_id
 
-# In database.py, update the add_sources function
-
 def add_sources(message_id: int, sources: List[Dict[str, Any]]) -> None:
-    """Add source documents for a message with enhanced metadata."""
     if not sources:
         return
-    
-    conn = sqlite3.connect("db/chat_history.db")
+    conn = create_connection()
     cursor = conn.cursor()
-    
-    # First, make sure the sources table has the necessary columns
-    try:
-        # Check if kb_name column exists
-        cursor.execute("PRAGMA table_info(sources)")
-        columns = [column[1] for column in cursor.fetchall()]
-        
-        if 'kb_name' not in columns:
-            # Add kb_name column if it doesn't exist
-            cursor.execute("ALTER TABLE sources ADD COLUMN kb_name TEXT")
-            conn.commit()
-    except Exception as e:
-        logger.warning(f"Error checking/updating sources table schema: {str(e)}")
-    
     for source in sources:
-        # Ensure score is a float
         try:
             score = float(source.get('score', 0.5))
         except (ValueError, TypeError):
             score = 0.5
-            
         cursor.execute("""
         INSERT INTO sources (message_id, source_document, page_number, score, kb_name) 
-        VALUES (?, ?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s, %s)
         """, (
-            message_id, 
-            source.get('source', ''), 
-            source.get('page', 0), 
+            message_id,
+            source.get('source', ''),
+            source.get('page', 0),
             score,
             source.get('kb_name', 'Unknown KB')
         ))
-    
     conn.commit()
     conn.close()
 
 def get_sources(message_id: int) -> List[Dict[str, Any]]:
-    """Get sources for a specific message with KB information."""
-    conn = sqlite3.connect("db/chat_history.db")
+    conn = create_connection()
     cursor = conn.cursor()
-    
-    try:
-        # Check if kb_name column exists
-        cursor.execute("PRAGMA table_info(sources)")
-        columns = [column[1] for column in cursor.fetchall()]
-        
-        if 'kb_name' in columns:
-            cursor.execute("""
-            SELECT source_document, page_number, score, kb_name
-            FROM sources 
-            WHERE message_id = ? 
-            ORDER BY score DESC
-            """, (message_id,))
-            sources = cursor.fetchall()
-            conn.close()
-            
-            return [{"source": src, "page": page, "score": score, "kb_name": kb_name} 
-                   for src, page, score, kb_name in sources]
-        else:
-            # Fallback if kb_name column doesn't exist
-            cursor.execute("""
-            SELECT source_document, page_number, score
-            FROM sources 
-            WHERE message_id = ? 
-            ORDER BY score DESC
-            """, (message_id,))
-            sources = cursor.fetchall()
-            conn.close()
-            
-            return [{"source": src, "page": page, "score": score, "kb_name": "Unknown KB"} 
-                   for src, page, score in sources]
-    except Exception as e:
-        logger.warning(f"Error getting sources: {str(e)}")
-        conn.close()
-        return []
+    cursor.execute("""
+    SELECT source_document, page_number, score, kb_name
+    FROM sources 
+    WHERE message_id = %s 
+    ORDER BY score DESC
+    """, (message_id,))
+    sources = cursor.fetchall()
+    conn.close()
+    return [{"source": src, "page": page, "score": score, "kb_name": kb_name} for src, page, score, kb_name in sources]
+
 def update_conversation_title(conversation_id: int, new_title: str) -> None:
-    """Update the title of a conversation."""
-    conn = sqlite3.connect("db/chat_history.db")
+    conn = create_connection()
     cursor = conn.cursor()
-    cursor.execute("UPDATE conversations SET title = ? WHERE id = ?", (new_title, conversation_id))
+    cursor.execute("UPDATE conversations SET title = %s WHERE id = %s", (new_title, conversation_id))
     conn.commit()
     conn.close()
 
 def delete_conversation(conversation_id: int) -> None:
-    """Delete a conversation and all its messages."""
-    conn = sqlite3.connect("db/chat_history.db")
+    conn = create_connection()
     cursor = conn.cursor()
-    
-    # Delete sources first (foreign key constraint)
     cursor.execute("""
     DELETE FROM sources 
-    WHERE message_id IN (SELECT id FROM messages WHERE conversation_id = ?)
+    WHERE message_id IN (SELECT id FROM messages WHERE conversation_id = %s)
     """, (conversation_id,))
-    
-    # Delete messages
-    cursor.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))
-    
-    # Delete conversation
-    cursor.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))
-    
+    cursor.execute("DELETE FROM messages WHERE conversation_id = %s", (conversation_id,))
+    cursor.execute("DELETE FROM conversations WHERE id = %s", (conversation_id,))
     conn.commit()
     conn.close()
 
 def register_knowledge_base(name: str, embedding_model: str, chunking_strategy: str, description: str = "") -> int:
-    """Register a new knowledge base and return its ID."""
-    conn = sqlite3.connect("db/chat_history.db")
+    conn = create_connection()
     cursor = conn.cursor()
     try:
         cursor.execute("""
         INSERT INTO knowledge_bases (name, description, embedding_model, chunking_strategy)
-        VALUES (?, ?, ?, ?)
+        VALUES (%s, %s, %s, %s) RETURNING id
         """, (name, description, embedding_model, chunking_strategy))
-        kb_id = cursor.lastrowid
+        kb_id = cursor.fetchone()[0]
         conn.commit()
         return kb_id
-    except sqlite3.IntegrityError:
-        # If the knowledge base already exists, get its ID
-        cursor.execute("SELECT id FROM knowledge_bases WHERE name = ?", (name,))
+    except psycopg2.IntegrityError:
+        conn.rollback()
+        cursor.execute("SELECT id FROM knowledge_bases WHERE name = %s", (name,))
         result = cursor.fetchone()
         return result[0] if result else None
     finally:
         conn.close()
 
 def get_knowledge_bases() -> List[Dict[str, Any]]:
-    """Get all knowledge bases."""
-    conn = sqlite3.connect("db/chat_history.db")
+    conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("""
     SELECT id, name, description, created_at, document_count, embedding_model, chunking_strategy
@@ -288,7 +302,6 @@ def get_knowledge_bases() -> List[Dict[str, Any]]:
     """)
     rows = cursor.fetchall()
     conn.close()
-    
     return [
         {
             "id": row[0],
@@ -298,46 +311,37 @@ def get_knowledge_bases() -> List[Dict[str, Any]]:
             "document_count": row[4],
             "embedding_model": row[5],
             "chunking_strategy": row[6]
-        }
-        for row in rows
+        } for row in rows
     ]
 
 def register_document(knowledge_base_id: int, filename: str, document_type: str, page_count: int, chunk_count: int) -> int:
-    """Register a document in the database."""
-    conn = sqlite3.connect("db/chat_history.db")
+    conn = create_connection()
     cursor = conn.cursor()
-    
-    # Add document
     cursor.execute("""
     INSERT INTO documents (knowledge_base_id, filename, document_type, page_count, chunk_count)
-    VALUES (?, ?, ?, ?, ?)
+    VALUES (%s, %s, %s, %s, %s) RETURNING id
     """, (knowledge_base_id, filename, document_type, page_count, chunk_count))
-    document_id = cursor.lastrowid
-    
-    # Update document count in knowledge base
+    document_id = cursor.fetchone()[0]
     cursor.execute("""
     UPDATE knowledge_bases
     SET document_count = document_count + 1
-    WHERE id = ?
+    WHERE id = %s
     """, (knowledge_base_id,))
-    
     conn.commit()
     conn.close()
     return document_id
 
 def get_documents(knowledge_base_id: int) -> List[Dict[str, Any]]:
-    """Get all documents for a knowledge base."""
-    conn = sqlite3.connect("db/chat_history.db")
+    conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("""
     SELECT id, filename, document_type, page_count, chunk_count, created_at
     FROM documents
-    WHERE knowledge_base_id = ?
+    WHERE knowledge_base_id = %s
     ORDER BY created_at DESC
     """, (knowledge_base_id,))
     rows = cursor.fetchall()
     conn.close()
-    
     return [
         {
             "id": row[0],
@@ -346,52 +350,42 @@ def get_documents(knowledge_base_id: int) -> List[Dict[str, Any]]:
             "page_count": row[3],
             "chunk_count": row[4],
             "created_at": row[5]
-        }
-        for row in rows
+        } for row in rows
     ]
 
 def get_setting(key: str, default: Any = None) -> Any:
-    """Get a setting from the database."""
-    conn = sqlite3.connect("db/chat_history.db")
+    conn = create_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    cursor.execute("SELECT value FROM settings WHERE key = %s", (key,))
     result = cursor.fetchone()
     conn.close()
-    
-    if result:
-        return result[0]
-    return default
+    return result[0] if result else default
 
 def set_setting(key: str, value: Any) -> None:
-    """Set a setting in the database."""
-    conn = sqlite3.connect("db/chat_history.db")
+    conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("""
-    INSERT INTO settings (key, value) VALUES (?, ?)
-    ON CONFLICT(key) DO UPDATE SET value = ?
-    """, (key, str(value), str(value)))
+    INSERT INTO settings (key, value) VALUES (%s, %s)
+    ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+    """, (key, str(value)))
     conn.commit()
     conn.close()
 
 def get_active_knowledge_base() -> Optional[Dict[str, Any]]:
-    """Get the currently active knowledge base."""
     active_kb_name = get_setting("active_knowledge_base")
     if not active_kb_name:
         return None
-    
-    conn = sqlite3.connect("db/chat_history.db")
+    conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("""
     SELECT id, name, description, created_at, document_count, embedding_model, chunking_strategy
     FROM knowledge_bases
-    WHERE name = ?
+    WHERE name = %s
     """, (active_kb_name,))
     row = cursor.fetchone()
     conn.close()
-    
     if not row:
         return None
-    
     return {
         "id": row[0],
         "name": row[1],
@@ -403,5 +397,35 @@ def get_active_knowledge_base() -> Optional[Dict[str, Any]]:
     }
 
 def set_active_knowledge_base(kb_name: str) -> None:
-    """Set the active knowledge base."""
     set_setting("active_knowledge_base", kb_name)
+
+
+def migrate_add_created_by_column():
+    """Add created_by column if it doesn't exist"""
+    conn = create_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='conversations' AND column_name='created_by';
+        """)
+
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE conversations ADD COLUMN created_by TEXT;")
+            # Set existing conversations to 'admin' as default
+            cursor.execute("UPDATE conversations SET created_by = 'admin' WHERE created_by IS NULL;")
+            conn.commit()
+            print("✅ Added created_by column to conversations table")
+        else:
+            print("ℹ️ created_by column already exists")
+
+    except Exception as e:
+        print(f"❌ Error adding created_by column: {e}")
+        conn.rollback()
+    finally:
+        cursor.close()
+        conn.close()
+
+if __name__=="__main__":
+    migrate_add_created_by_column()
