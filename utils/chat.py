@@ -4,7 +4,6 @@ import logging
 from typing import List, Dict, Any, Optional
 import yaml
 import os
-
 from langchain_openai import ChatOpenAI
 from langchain.chains import ConversationalRetrievalChain
 from langchain.prompts import PromptTemplate
@@ -12,7 +11,7 @@ from langchain.memory import ConversationBufferMemory
 from langchain_community.vectorstores import FAISS
 from langchain_ollama import ChatOllama
 # Import from document_processing (this was missing)
-from utils.document_processing import initialize_embedding_model, get_retriever
+from utils.document_processing import initialize_embedding_model, get_retriever, ChatModel
 from utils.database import add_message, add_sources, get_messages, update_conversation_title
 # Setup logging
 logger = logging.getLogger("rag-chatbot.chat")
@@ -142,20 +141,13 @@ def process_query(conversation_id: int, query: str, kb_name: str = None, kb_name
                 # kb_path = get_faiss_index_path(current_kb, embedding_model)
 
                 # OPTION 2: For current setup, check multiple possible paths:
-                possible_paths = [
-                    f"FAISS_Index/{current_kb}",  # Original path
-                    f"llama3.2/FAISS_Index/{current_kb}",  # Llama path
-                    f"openai/FAISS_Index/{current_kb}",  # OpenAI path
-                    f"gemma2/FAISS_Index/{current_kb}",  # Gemma path
-                    f"deepseek/FAISS_Index/{current_kb}"  # DeepSeek path
-                ]
+                chat_model_enum = ChatModel(chat_model)
+                model_folder = chat_model_enum.folder_name()
+                # kb_path =
+                possible_paths =f"{model_folder}/FAISS_Index/{current_kb}"
 
-                kb_path = None
-                for path in possible_paths:
-                    if os.path.exists(path) and os.path.isdir(path):
-                        kb_path = path
-                        logger.info(f"Found KB at path: {kb_path}")
-                        break
+                kb_path = possible_paths
+
 
                 if not kb_path:
                     logger.warning(f"Knowledge base {current_kb} not found in any location")
@@ -503,3 +495,6 @@ def get_suggested_prompts() -> List[str]:
         "Compare and contrast the information across these documents.",
         "Generate a concise summary of the uploaded content."
     ]
+
+if __name__=="__main__":
+    get_retriever("gemma2/FAISS_Index/kb_apache_hadoop","gemma2:2b")

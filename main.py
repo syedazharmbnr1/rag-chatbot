@@ -676,6 +676,7 @@ def sidebar():
         else:
             st.session_state.openai_key_configured = True
 
+
     # Determine compatible embedding model
     chat_model = st.session_state.get('selected_chat_model')
     logger.info(f"Current chat model in sidebar: {chat_model}")
@@ -731,10 +732,10 @@ def sidebar():
         if compatible_kbs:
             st.session_state.active_kb = compatible_kbs[0]
             logger.info(f"Updated active KB to: {compatible_kbs[0]}")
-        else:
-            st.session_state.active_kb = None
-            st.session_state.direct_chat_mode = True
-            logger.info("No compatible KBs, switching to direct chat mode")
+        # else:
+        #     st.session_state.active_kb = None
+        #     st.session_state.direct_chat_mode = True
+        #     logger.info("No compatible KBs, switching to direct chat mode")
 
     # Knowledge base selection UI
     if compatible_kbs:
@@ -856,56 +857,57 @@ def chat_interface():
             st.rerun()
 
     # Upload documents section (in the main chat window) - improved UI
-    with st.expander("📁 Upload Documents", expanded=False):
-        embedding_choice = st.selectbox(
-            "🧠 Embedding Model:",
-            options=[model.value for model in EmbeddingModel],
-            format_func=lambda x: {
-                "text-embedding-3-small": "OpenAI (text-embedding-3-small)",
-                "deepseek-r1:latest": "DeepSeek (deepseek-r1:latest)"
-            }.get(x, x),
-            index=0,
-            help="Choose the embedding model for processing documents"
-        )
-        if embedding_choice == EmbeddingModel.OPEN_AI.value:
-            chunking_choice = "semantic_percentile"
-        else:
-            chunking_choice = "recursive"
+    # Upload documents section (only show in RAG mode)
+    if not st.session_state.direct_chat_mode:
+        with st.expander("📁 Upload Documents", expanded=False):
+            embedding_choice = st.selectbox(
+                "🧠 Embedding Model:",
+                options=[model.value for model in EmbeddingModel],
+                format_func=lambda x: {
+                    "text-embedding-3-small": "OpenAI (text-embedding-3-small)",
+                    "deepseek-r1:latest": "DeepSeek (deepseek-r1:latest)"
+                }.get(x, x),
+                index=0,
+                help="Choose the embedding model for processing documents"
+            )
+            if embedding_choice == EmbeddingModel.OPEN_AI.value:
+                chunking_choice = "semantic_percentile"
+            else:
+                chunking_choice = "recursive"
 
-        st.write(f"Selected Chunking Strategy: `{chunking_choice}`")
-        # Upload area with better styling
-        st.markdown("<div class='upload-area' style='padding:25px;'>", unsafe_allow_html=True)
-        uploaded_files = st.file_uploader(
-            "Drag & drop PDF or DOCX files here",
-            type=["pdf", "docx"],
-            accept_multiple_files=True,
-            key="main_file_uploader",
-            label_visibility="collapsed"
-        )
-        st.markdown("""
-        <div style='text-align:center; margin-top:10px; font-size:14px; color:#6b7280;'>
-            Supported formats: PDF, DOCX
-        </div>
-        """, unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+            st.write(f"Selected Chunking Strategy: `{chunking_choice}`")
+            # Upload area with better styling
+            st.markdown("<div class='upload-area' style='padding:25px;'>", unsafe_allow_html=True)
+            uploaded_files = st.file_uploader(
+                "Drag & drop PDF or DOCX files here",
+                type=["pdf", "docx"],
+                accept_multiple_files=True,
+                key="main_file_uploader",
+                label_visibility="collapsed"
+            )
+            st.markdown("""
+            <div style='text-align:center; margin-top:10px; font-size:14px; color:#6b7280;'>
+                Supported formats: PDF, DOCX
+            </div>
+            """, unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        # Display upload status if any - better styling
-        if st.session_state.upload_status:
-            status_type = st.session_state.upload_status["type"]
-            status_msg = st.session_state.upload_status["message"]
-            icon = "✅" if status_type == "success" else "❌"
-            st.markdown(
-                f"<div class='upload-status {status_type}' style='display:flex; align-items:center;'><span style='margin-right:5px;'>{icon}</span> {status_msg}</div>",
-                unsafe_allow_html=True)
+            # Display upload status if any - better styling
+            if st.session_state.upload_status:
+                status_type = st.session_state.upload_status["type"]
+                status_msg = st.session_state.upload_status["message"]
+                icon = "✅" if status_type == "success" else "❌"
+                st.markdown(
+                    f"<div class='upload-status {status_type}' style='display:flex; align-items:center;'><span style='margin-right:5px;'>{icon}</span> {status_msg}</div>",
+                    unsafe_allow_html=True)
 
-        # Auto-process files when uploaded
-        if uploaded_files and not st.session_state.processing_file:
-            with st.spinner("Processing files..."):
-                process_uploaded_files(uploaded_files, embedding_choice, chunking_choice)
+            # Auto-process files when uploaded
+            if uploaded_files and not st.session_state.processing_file:
+                with st.spinner("Processing files..."):
+                    process_uploaded_files(uploaded_files, embedding_choice, chunking_choice)
 
-    # Knowledge Base Selector in main area - FIXED VERSION (using proper Streamlit components)
-    # Replace the KB card grid with a dropdown
-    if st.session_state.kb_names and len(st.session_state.kb_names) > 0:
+    # Knowledge Base Selector (only show in RAG mode)
+    if not st.session_state.direct_chat_mode and st.session_state.kb_names and len(st.session_state.kb_names) > 0:
         with st.expander("📚 Select Knowledge Base", expanded=True):
             st.write("### Available Knowledge Bases")
             st.write("Select and activate knowledge bases for your questions:")
@@ -949,217 +951,218 @@ def chat_interface():
 
             with col2:
                 if st.button("🔄 Select All KBs", key="select_all_kbs_main"):
-                    # Use session_state.kb_names instead of kb_names
                     st.session_state.selected_kbs = st.session_state.kb_names.copy()
                     if not st.session_state.active_kb and st.session_state.selected_kbs:
                         st.session_state.active_kb = st.session_state.selected_kbs[0]
                         set_active_knowledge_base(st.session_state.selected_kbs[0])
                     st.session_state.direct_chat_mode = False
                     st.rerun()
-        # Suggested prompts (only show when no messages yet)
-        if not st.session_state.messages:
-            st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
-            st.markdown("### Example Questions to Get Started:")
 
-            # Show suggestions in columns
-            col1, col2 = st.columns(2)
-            suggestions = get_suggested_prompts()
-            user_name = st.session_state.get('name', 'Anonymous')
-            with col1:
-                for i in range(0, len(suggestions), 2):
-                    if i < len(suggestions):
-                        if st.button(f"💡 {suggestions[i]}", key=f"sugg_{i}", use_container_width=True):
-                            user_name = st.session_state.get('name', 'Anonymous')  # Use 'name'
-                            message_id = add_message( st.session_state.current_conversation_id, "user",suggestions[i],user_name)
-                            st.session_state.messages = get_messages(st.session_state.current_conversation_id)
-                            title = suggestions[i][:30] + ('...' if len(suggestions[i]) > 30 else '')
-                            update_conversation_title(st.session_state.current_conversation_id, title)
-                            st.session_state.is_thinking = True
-                            st.rerun()
+    # Suggested prompts (only show when no messages yet AND not in direct mode)
+    if not st.session_state.messages and not st.session_state.direct_chat_mode:
+        st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
+        st.markdown("### Example Questions to Get Started:")
 
-            with col2:
-                for i in range(1, len(suggestions), 2):
-                    if i < len(suggestions):
-                        if st.button(f"💡 {suggestions[i]}", key=f"sugg_{i}", use_container_width=True):
-                            # Add the suggestion to the chat
-                            message_id = add_message(st.session_state.current_conversation_id, "user", suggestions[i],user_name)
-                            st.session_state.messages = get_messages(st.session_state.current_conversation_id)
-                            title = suggestions[i][:30] + ('...' if len(suggestions[i]) > 30 else '')
-                            update_conversation_title(st.session_state.current_conversation_id, title)
-                            st.session_state.conversations = get_conversations()
-                            logger.info(f"Updated conversation title to: {title}")
-                            st.session_state.is_thinking = True
-                            st.rerun()
+        # Show suggestions in columns
+        col1, col2 = st.columns(2)
+        suggestions = get_suggested_prompts()
+        user_name = st.session_state.get('name', 'Anonymous')
+        with col1:
+            for i in range(0, len(suggestions), 2):
+                if i < len(suggestions):
+                    if st.button(f"💡 {suggestions[i]}", key=f"sugg_{i}", use_container_width=True):
+                        user_name = st.session_state.get('name', 'Anonymous')
+                        message_id = add_message(st.session_state.current_conversation_id, "user", suggestions[i],
+                                                 user_name)
+                        st.session_state.messages = get_messages(st.session_state.current_conversation_id)
+                        title = suggestions[i][:30] + ('...' if len(suggestions[i]) > 30 else '')
+                        update_conversation_title(st.session_state.current_conversation_id, title)
+                        st.session_state.is_thinking = True
+                        st.rerun()
+
+        with col2:
+            for i in range(1, len(suggestions), 2):
+                if i < len(suggestions):
+                    if st.button(f"💡 {suggestions[i]}", key=f"sugg_{i}", use_container_width=True):
+                        message_id = add_message(st.session_state.current_conversation_id, "user", suggestions[i],
+                                                 user_name)
+                        st.session_state.messages = get_messages(st.session_state.current_conversation_id)
+                        title = suggestions[i][:30] + ('...' if len(suggestions[i]) > 30 else '')
+                        update_conversation_title(st.session_state.current_conversation_id, title)
+                        st.session_state.conversations = get_conversations()
+                        logger.info(f"Updated conversation title to: {title}")
+                        st.session_state.is_thinking = True
+                        st.rerun()
 
         # Chat messages - with improved styling
-        message_container = st.container()
+    message_container = st.container()
 
-        with message_container:
-            # Display existing messages
-            for msg_id, role, content, user_name, timestamp in st.session_state.messages:
-                if role == "system":
-                    continue  # Skip system messages
-                formatted_time = timestamp.strftime("%H:%M")
+    with message_container:
+        # Display existing messages
+        for msg_id, role, content, user_name, timestamp in st.session_state.messages:
+            if role == "system":
+                continue  # Skip system messages
+            formatted_time = timestamp.strftime("%H:%M")
 
-                with st.chat_message(role):
-                    if user_name and user_name != role:
-                        st.markdown(f"**{user_name}:**")
-                    st.write(content)
-                    st.markdown(
-                        f"<div style='font-size:11px; color:#6b7280; text-align:right; margin-top:5px;'>{formatted_time}</div>",
-                        unsafe_allow_html=True)
+            with st.chat_message(role):
+                if user_name and user_name != role:
+                    st.markdown(f"**{user_name}:**")
+                st.write(content)
+                st.markdown(
+                    f"<div style='font-size:11px; color:#6b7280; text-align:right; margin-top:5px;'>{formatted_time}</div>",
+                    unsafe_allow_html=True)
 
-                    # Show sources for assistant messages (only in RAG mode) - improved styling
-                    # In chat_interface() function where it displays sources:
+                # Show sources for assistant messages (only in RAG mode) - improved styling
+                # In chat_interface() function where it displays sources:
 
-                    # Show sources for assistant messages (only in RAG mode) - improved styling with tabs
-                    if role == "assistant" and st.session_state.show_sources and not st.session_state.direct_chat_mode:
-                        sources = get_sources(msg_id)
-                        if sources:
-                            with st.expander("📄 Sources", expanded=False):
-                                # Create tabs for different source views
-                                source_tabs = st.tabs(["📚 Query-Relevant Sources", "🗂️ Selected Knowledge Bases"])
+                # Show sources for assistant messages (only in RAG mode) - improved styling with tabs
+                if role == "assistant" and st.session_state.show_sources and not st.session_state.direct_chat_mode:
+                    sources = get_sources(msg_id)
+                    if sources:
+                        with st.expander("📄 Sources", expanded=False):
+                            # Create tabs for different source views
+                            source_tabs = st.tabs(["📚 Query-Relevant Sources", "🗂️ Selected Knowledge Bases"])
 
-                                # First tab: Query-relevant sources (sorted by relevance)
-                                with source_tabs[0]:
-                                    # Group sources by unique document/page to avoid duplicates
-                                    unique_sources = {}
-                                    for source in sources:
-                                        key = (source.get('source', 'Unknown'), source.get('page', 0))
-                                        # Only keep the source with the highest score
-                                        if key not in unique_sources or source.get('score', 0) > unique_sources[
-                                            key].get('score', 0):
-                                            unique_sources[key] = source
+                            # First tab: Query-relevant sources (sorted by relevance)
+                            with source_tabs[0]:
+                                # Group sources by unique document/page to avoid duplicates
+                                unique_sources = {}
+                                for source in sources:
+                                    key = (source.get('source', 'Unknown'), source.get('page', 0))
+                                    # Only keep the source with the highest score
+                                    if key not in unique_sources or source.get('score', 0) > unique_sources[
+                                        key].get('score', 0):
+                                        unique_sources[key] = source
 
-                                    # Sort by relevance score
-                                    sorted_sources = sorted(unique_sources.values(), key=lambda x: x.get('score', 0),
-                                                            reverse=True)
+                                # Sort by relevance score
+                                sorted_sources = sorted(unique_sources.values(), key=lambda x: x.get('score', 0),
+                                                        reverse=True)
 
-                                    for i, source in enumerate(sorted_sources):
-                                        source_name = source.get('source', 'Unknown')
-                                        page_number = source.get('page', 0)
-                                        score = source.get('score', 0)
-                                        kb_name = source.get('kb_name', 'Unknown KB')
-                                        score_percentage = int(score * 100)
+                                for i, source in enumerate(sorted_sources):
+                                    source_name = source.get('source', 'Unknown')
+                                    page_number = source.get('page', 0)
+                                    score = source.get('score', 0)
+                                    kb_name = source.get('kb_name', 'Unknown KB')
+                                    score_percentage = int(score * 100)
 
-                                        # Better source display with color-coded relevance
-                                        relevance_color = "#10b981"  # Green for high relevance
-                                        if score_percentage < 70:
-                                            relevance_color = "#f59e0b"  # Yellow for medium relevance
-                                        if score_percentage < 50:
-                                            relevance_color = "#ef4444"  # Red for low relevance
+                                    # Better source display with color-coded relevance
+                                    relevance_color = "#10b981"  # Green for high relevance
+                                    if score_percentage < 70:
+                                        relevance_color = "#f59e0b"  # Yellow for medium relevance
+                                    if score_percentage < 50:
+                                        relevance_color = "#ef4444"  # Red for low relevance
 
-                                        st.markdown(f"""
-                                        <div style='margin-bottom:12px; padding:10px; border-radius:6px; background-color:#f9fafb; border-left:4px solid {relevance_color};'>
-                                            <div style='font-weight:600; font-size:15px;'>{i + 1}. {source_name}</div>
-                                            <div style='display:flex; flex-wrap:wrap; justify-content:space-between; margin-top:5px;'>
-                                                <span style='font-weight:500; margin-right:8px;'>KB: {kb_name}</span>
-                                                <span style='background:#5b2d91; color:white; padding:2px 8px; border-radius:12px; font-size:12px; margin-right:8px;'>Page {page_number}</span>
-                                                <span style='color:{relevance_color}; font-weight:500;'>Relevance: {score_percentage}%</span>
-                                            </div>
+                                    st.markdown(f"""
+                                    <div style='margin-bottom:12px; padding:10px; border-radius:6px; background-color:#f9fafb; border-left:4px solid {relevance_color};'>
+                                        <div style='font-weight:600; font-size:15px;'>{i + 1}. {source_name}</div>
+                                        <div style='display:flex; flex-wrap:wrap; justify-content:space-between; margin-top:5px;'>
+                                            <span style='font-weight:500; margin-right:8px;'>KB: {kb_name}</span>
+                                            <span style='background:#5b2d91; color:white; padding:2px 8px; border-radius:12px; font-size:12px; margin-right:8px;'>Page {page_number}</span>
+                                            <span style='color:{relevance_color}; font-weight:500;'>Relevance: {score_percentage}%</span>
                                         </div>
-                                        """, unsafe_allow_html=True)
+                                    </div>
+                                    """, unsafe_allow_html=True)
 
-                                # Second tab: Group by knowledge base
-                                with source_tabs[1]:
-                                    # Group sources by knowledge base
-                                    kb_groups = {}
-                                    for source in sources:
-                                        kb_name = source.get('kb_name', 'Unknown KB')
-                                        if kb_name not in kb_groups:
-                                            kb_groups[kb_name] = []
-                                        kb_groups[kb_name].append(source)
+                            # Second tab: Group by knowledge base
+                            with source_tabs[1]:
+                                # Group sources by knowledge base
+                                kb_groups = {}
+                                for source in sources:
+                                    kb_name = source.get('kb_name', 'Unknown KB')
+                                    if kb_name not in kb_groups:
+                                        kb_groups[kb_name] = []
+                                    kb_groups[kb_name].append(source)
 
-                                    # Sort knowledge bases alphabetically for consistent display
-                                    for kb_name in sorted(kb_groups.keys()):
-                                        kb_sources = kb_groups[kb_name]
+                                # Sort knowledge bases alphabetically for consistent display
+                                for kb_name in sorted(kb_groups.keys()):
+                                    kb_sources = kb_groups[kb_name]
 
-                                        # Deduplicate sources within this KB
-                                        unique_kb_sources = {}
-                                        for source in kb_sources:
-                                            key = (source.get('source', 'Unknown'), source.get('page', 0))
-                                            if key not in unique_kb_sources or source.get('score', 0) > \
-                                                    unique_kb_sources[key].get('score', 0):
-                                                unique_kb_sources[key] = source
+                                    # Deduplicate sources within this KB
+                                    unique_kb_sources = {}
+                                    for source in kb_sources:
+                                        key = (source.get('source', 'Unknown'), source.get('page', 0))
+                                        if key not in unique_kb_sources or source.get('score', 0) > \
+                                                unique_kb_sources[key].get('score', 0):
+                                            unique_kb_sources[key] = source
 
-                                        # Sort by source name and page
-                                        sorted_kb_sources = sorted(unique_kb_sources.values(),
-                                                                   key=lambda x: (x.get('source', 'Unknown'),
-                                                                                  x.get('page', 0)))
+                                    # Sort by source name and page
+                                    sorted_kb_sources = sorted(unique_kb_sources.values(),
+                                                               key=lambda x: (x.get('source', 'Unknown'),
+                                                                              x.get('page', 0)))
 
-                                        # Only display KB section if it has sources
-                                        if sorted_kb_sources:
-                                            st.markdown(f"### {kb_name}")
+                                    # Only display KB section if it has sources
+                                    if sorted_kb_sources:
+                                        st.markdown(f"### {kb_name}")
 
-                                            for i, source in enumerate(sorted_kb_sources):
-                                                source_name = source.get('source', 'Unknown')
-                                                page_number = source.get('page', 0)
-                                                score = source.get('score', 0)
-                                                score_percentage = int(score * 100)
+                                        for i, source in enumerate(sorted_kb_sources):
+                                            source_name = source.get('source', 'Unknown')
+                                            page_number = source.get('page', 0)
+                                            score = source.get('score', 0)
+                                            score_percentage = int(score * 100)
 
-                                                # Color code relevance
-                                                relevance_color = "#10b981"  # Green for high relevance
-                                                if score_percentage < 70:
-                                                    relevance_color = "#f59e0b"  # Yellow for medium relevance
-                                                if score_percentage < 50:
-                                                    relevance_color = "#ef4444"  # Red for low relevance
+                                            # Color code relevance
+                                            relevance_color = "#10b981"  # Green for high relevance
+                                            if score_percentage < 70:
+                                                relevance_color = "#f59e0b"  # Yellow for medium relevance
+                                            if score_percentage < 50:
+                                                relevance_color = "#ef4444"  # Red for low relevance
 
-                                                st.markdown(f"""
-                                                <div style='margin-bottom:8px; padding:8px; border-radius:4px; background-color:#f3f0f9;'>
-                                                    <div style='font-weight:500;'>{i + 1}. {source_name}</div>
-                                                    <div style='display:flex; justify-content:space-between; font-size:13px;'>
-                                                        <span>Page {page_number}</span>
-                                                        <span style='color:{relevance_color}; font-weight:500;'>Relevance: {score_percentage}%</span>
-                                                    </div>
+                                            st.markdown(f"""
+                                            <div style='margin-bottom:8px; padding:8px; border-radius:4px; background-color:#f3f0f9;'>
+                                                <div style='font-weight:500;'>{i + 1}. {source_name}</div>
+                                                <div style='display:flex; justify-content:space-between; font-size:13px;'>
+                                                    <span>Page {page_number}</span>
+                                                    <span style='color:{relevance_color}; font-weight:500;'>Relevance: {score_percentage}%</span>
                                                 </div>
-                                                """, unsafe_allow_html=True)
+                                            </div>
+                                            """, unsafe_allow_html=True)
 
-                                            st.markdown("---")
-            # Display thinking indicator with animation
-            if st.session_state.is_thinking:
-                with st.chat_message("assistant"):
-                    st.markdown("""
-                    <div style='display:flex; align-items:center;'>
-                        <div class='thinking-dot'></div>
-                        <div class='thinking-dot'></div>
-                        <div class='thinking-dot'></div>
-                        <span>Thinking...</span>
-                    </div>
-                    """, unsafe_allow_html=True)
+                                        st.markdown("---")
+        # Display thinking indicator with animation
+        if st.session_state.is_thinking:
+            with st.chat_message("assistant"):
+                st.markdown("""
+                <div style='display:flex; align-items:center;'>
+                    <div class='thinking-dot'></div>
+                    <div class='thinking-dot'></div>
+                    <div class='thinking-dot'></div>
+                    <span>Thinking...</span>
+                </div>
+                """, unsafe_allow_html=True)
 
         # Chat input with better styling
-        user_input = st.chat_input("Type your message here...")
+    user_input = st.chat_input("Type your message here...")
 
-        if user_input:
-            logger.info(f"Received user input: {user_input[:50]}...")
-            user_name = st.session_state.get('name', 'Anonymous')  # Use 'name' not 'username'
-            logger.info(f"Adding message from user: {user_name}")
+    if user_input:
+        logger.info(f"Received user input: {user_input[:50]}...")
+        user_name = st.session_state.get('name', 'Anonymous')  # Use 'name' not 'username'
+        logger.info(f"Adding message from user: {user_name}")
 
-            # Get the authenticated user's name
+        # Get the authenticated user's name
 
 
-            # Add user message with name
-            message_id = add_message(
-                st.session_state.current_conversation_id,
-                "user",  # Keep for LangChain compatibility
-                user_input,
-                user_name  # This should be the actual user name like "user1"
-            )
+        # Add user message with name
+        message_id = add_message(
+            st.session_state.current_conversation_id,
+            "user",  # Keep for LangChain compatibility
+            user_input,
+            user_name  # This should be the actual user name like "user1"
+        )
 
-            # Add user message to database
+        # Add user message to database
 
-            # Update conversation title if this is the first message
-            if len(st.session_state.messages) == 0:
-                # Use first few words (up to 30 chars) as the title
-                title = user_input[:30] + ('...' if len(user_input) > 30 else '')
-                update_conversation_title(st.session_state.current_conversation_id, title)
-                st.session_state.conversations = get_conversations()
-                logger.info(f"Updated conversation title to: {title}")
+        # Update conversation title if this is the first message
+        if len(st.session_state.messages) == 0:
+            # Use first few words (up to 30 chars) as the title
+            title = user_input[:30] + ('...' if len(user_input) > 30 else '')
+            update_conversation_title(st.session_state.current_conversation_id, title)
+            st.session_state.conversations = get_conversations()
+            logger.info(f"Updated conversation title to: {title}")
 
-            # Set thinking state and refresh
-            st.session_state.messages = get_messages(st.session_state.current_conversation_id)
-            st.session_state.is_thinking = True
-            st.rerun()
+        # Set thinking state and refresh
+        st.session_state.messages = get_messages(st.session_state.current_conversation_id)
+        st.session_state.is_thinking = True
+        st.rerun()
 
 
 def handle_ai_response():
@@ -1311,7 +1314,7 @@ def main():
         # Check if OpenAI API key is configured
         if not st.session_state.openai_key_configured:
             logger.warning("OpenAI API key not configured, showing API key screen")
-            api_key_required_screen()
+            # api_key_required_screen()
         else:
             chat_interface()
 

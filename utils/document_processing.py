@@ -40,6 +40,16 @@ class ChatModel(Enum):
     LLAMA_3_2_1B = "llama3.2:1b"  # ADD THIS
     GEMMA_2_2B = "gemma2:2b"
 
+    def folder_name(self):
+        # Explicit folder mapping
+        folder_map = {
+            ChatModel.GPT_4O_MINI: "openai",
+            ChatModel.DEEPSEEK_R1: "deepseek",
+            ChatModel.LLAMA_3_2_1B: "llama3.2",
+            ChatModel.GEMMA_2_2B: "gemma2"
+        }
+        return folder_map[self]
+
 def load_pdf_with_pages(file):
     """Load a PDF file and extract content with page numbers."""
     logger.info(f"Loading PDF file: {file.name}")
@@ -571,6 +581,7 @@ def migrate_existing_kbs():
         pass
 
 if __name__ =="__main__":
-    migrate_existing_kbs()
+    # migrate_existing_kbs()
     # result = get_retriever("kb_test","llama3.2:1b")
     # print(result)
+    retrieve_documents("gemma2/kb_apache_hadoop","gemma2:2b","what is inside the docs")

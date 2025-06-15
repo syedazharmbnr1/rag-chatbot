@@ -400,32 +400,31 @@ def set_active_knowledge_base(kb_name: str) -> None:
     set_setting("active_knowledge_base", kb_name)
 
 
-def migrate_add_created_by_column():
-    """Add created_by column if it doesn't exist"""
-    conn = create_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute("""
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name='conversations' AND column_name='created_by';
-        """)
+# def migrate_add_created_by_column():
+#     """Add created_by column if it doesn't exist"""
+#     conn = create_connection()
+#     cursor = conn.cursor()
+#     try:
+#         cursor.execute("""
+#         SELECT column_name
+#         FROM information_schema.columns
+#         WHERE table_name='conversations' AND column_name='created_by';
+#         """)
+#
+#         if not cursor.fetchone():
+#             cursor.execute("ALTER TABLE conversations ADD COLUMN created_by TEXT;")
+#             # Set existing conversations to 'admin' as default
+#             cursor.execute("UPDATE conversations SET created_by = 'admin' WHERE created_by IS NULL;")
+#             conn.commit()
+#             print("✅ Added created_by column to conversations table")
+#         else:
+#             print("ℹ️ created_by column already exists")
+#
+#     except Exception as e:
+#         print(f"❌ Error adding created_by column: {e}")
+#         conn.rollback()
+#     finally:
+#         cursor.close()
+#         conn.close()
 
-        if not cursor.fetchone():
-            cursor.execute("ALTER TABLE conversations ADD COLUMN created_by TEXT;")
-            # Set existing conversations to 'admin' as default
-            cursor.execute("UPDATE conversations SET created_by = 'admin' WHERE created_by IS NULL;")
-            conn.commit()
-            print("✅ Added created_by column to conversations table")
-        else:
-            print("ℹ️ created_by column already exists")
-
-    except Exception as e:
-        print(f"❌ Error adding created_by column: {e}")
-        conn.rollback()
-    finally:
-        cursor.close()
-        conn.close()
-
-if __name__=="__main__":
-    migrate_add_created_by_column()
+# if __name__=="__main__":
