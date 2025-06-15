@@ -31,10 +31,6 @@ class EmbeddingModel(Enum):
 
 class ChunkingStrategy(Enum):
     SEMANTIC_PERCENTILE = "semantic_percentile"
-    SEMANTIC_INTERQUARTILE = "semantic_interquartile"
-    SEMANTIC_STD_DEV = "semantic_std_dev"
-    SEMANTIC_CHUNKER = "semantic_chunker"
-    TEXT_SPLIT = "text_splitter"
     RECURSIVE = "recursive"
 
 

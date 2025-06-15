@@ -297,7 +297,6 @@ def authenticate_user(yaml_path='credentials.yaml'):
 def init_session_state():
     logger.info("Initializing session state")
 
-    # ADD THIS: Initialize database tables first
     try:
         init_database()
         logger.info("Database tables initialized successfully")
@@ -305,30 +304,27 @@ def init_session_state():
         logger.error(f"Failed to initialize database: {e}")
         st.error(f"Database initialization failed: {e}")
         return
-    if "selected_chat_model" not in st.session_state:
-        current_user = st.session_state.get('username', 'admin')
-        user_chat_model = get_setting(f"user_{current_user}_chat_model", ChatModel.GPT_4O_MINI.value)
-        st.session_state.selected_chat_model = user_chat_model
-        logger.info(f"Loaded user's preferred chat model: {user_chat_model}")
 
+    # Get current user
     current_user = st.session_state.get('username', 'admin')
 
-    if "conversations" not in st.session_state:
-        st.session_state.conversations = get_conversations(current_user)  # PASS USER
-        logger.debug(f"Loaded {len(st.session_state.conversations)} conversations for user: {current_user}")
+    # ALWAYS refresh conversations from database (don't cache)
+    st.session_state.conversations = get_conversations(current_user)
+    logger.debug(f"Loaded {len(st.session_state.conversations)} conversations for user: {current_user}")
 
+    # CRITICAL FIX: Ensure current_conversation_id is set
     if "current_conversation_id" not in st.session_state:
         # Create a new conversation if none exists
         if not st.session_state.conversations:
             logger.info(f"No conversations found for {current_user}, creating a new one")
-            user_display_name = st.session_state.get('name', current_user)  # Use display name
-            new_id = create_conversation(created_by=current_user)  # PASS USER
+            new_id = create_conversation(created_by=current_user)
             st.session_state.conversations = get_conversations(current_user)
             st.session_state.current_conversation_id = new_id
         else:
             logger.info(f"Setting current conversation to first in list for {current_user}")
             st.session_state.current_conversation_id = st.session_state.conversations[0][0]
 
+    # ENSURE messages are loaded for current conversation
     if "messages" not in st.session_state:
         st.session_state.messages = get_messages(st.session_state.current_conversation_id)
         logger.debug(
@@ -568,6 +564,10 @@ def sidebar():
     if direct_chat != st.session_state.direct_chat_mode:
         logger.info(f"Changing direct chat mode to: {direct_chat}")
         st.session_state.direct_chat_mode = direct_chat
+        new_id = create_conversation(created_by=current_user)
+        st.session_state.current_conversation_id = new_id
+        st.session_state.conversations = get_conversations(current_user)
+        st.session_state.messages = []
         st.rerun()
 
     # Chat History Section
@@ -646,6 +646,35 @@ def sidebar():
         set_setting(f"user_{current_user}_chat_model", selected_llm)
         st.sidebar.success(
             f"✅ Switched to {selected_llm.split(':')[0].replace('gpt-', 'GPT-').replace('-', ' ').title()}")
+    # API Key input for OpenAI models
+    if selected_llm.startswith("gpt"):
+        st.sidebar.markdown("### 🔑 OpenAI API Key")
+
+        # Get API key from session state or environment
+        if "openai_api_key" not in st.session_state:
+            st.session_state.openai_api_key = os.getenv("OPENAI_API_KEY", "")
+
+        api_key_input = st.sidebar.text_input(
+            "Enter your OpenAI API Key:",
+            value=st.session_state.openai_api_key if st.session_state.openai_api_key and not st.session_state.openai_api_key.startswith(
+                "sk-proj-") else "",
+            type="password",
+            help="Get your API key from https://platform.openai.com/api-keys"
+        )
+
+        if api_key_input != st.session_state.openai_api_key:
+            st.session_state.openai_api_key = api_key_input
+            os.environ["OPENAI_API_KEY"] = api_key_input
+            if api_key_input:
+                st.session_state.openai_key_configured = True
+                st.sidebar.success("✅ API Key updated")
+            else:
+                st.session_state.openai_key_configured = False
+
+        if not st.session_state.openai_api_key:
+            st.sidebar.warning("⚠️ API Key required for OpenAI models")
+        else:
+            st.session_state.openai_key_configured = True
 
     # Determine compatible embedding model
     chat_model = st.session_state.get('selected_chat_model')
@@ -828,34 +857,22 @@ def chat_interface():
 
     # Upload documents section (in the main chat window) - improved UI
     with st.expander("📁 Upload Documents", expanded=False):
-        col1, col2 = st.columns(2)
+        embedding_choice = st.selectbox(
+            "🧠 Embedding Model:",
+            options=[model.value for model in EmbeddingModel],
+            format_func=lambda x: {
+                "text-embedding-3-small": "OpenAI (text-embedding-3-small)",
+                "deepseek-r1:latest": "DeepSeek (deepseek-r1:latest)"
+            }.get(x, x),
+            index=0,
+            help="Choose the embedding model for processing documents"
+        )
+        if embedding_choice == EmbeddingModel.OPEN_AI.value:
+            chunking_choice = "semantic_percentile"
+        else:
+            chunking_choice = "recursive"
 
-        with col1:
-            embedding_choice = st.selectbox(
-                "🧠 Embedding Model:",
-                options=[model.value for model in EmbeddingModel],
-                format_func=lambda x: {
-                    "text-embedding-3-small": "OpenAI (text-embedding-3-small)",
-                    "deepseek-r1:latest": "DeepSeek (deepseek-r1:latest)"
-                }.get(x, x),
-                index=0,
-                help="Choose the embedding model for processing documents"
-            )
-
-        with col2:
-            chunking_choice = st.selectbox(
-                "📄 Chunking Strategy:",
-                options=[strategy.value for strategy in ChunkingStrategy],
-                format_func=lambda x: {
-                    "semantic_percentile": "Semantic Percentile",
-                    "semantic_interquartile": "Semantic Interquartile",
-                    "semantic_std_dev": "Semantic Standard Deviation",
-                    "text_splitter": "Text Splitter",
-                    "recursive": "Recursive"
-                }.get(x, x),
-                index=0,
-                help="Choose how to split documents into chunks"
-            )
+        st.write(f"Selected Chunking Strategy: `{chunking_choice}`")
         # Upload area with better styling
         st.markdown("<div class='upload-area' style='padding:25px;'>", unsafe_allow_html=True)
         uploaded_files = st.file_uploader(
@@ -953,13 +970,10 @@ def chat_interface():
                     if i < len(suggestions):
                         if st.button(f"💡 {suggestions[i]}", key=f"sugg_{i}", use_container_width=True):
                             user_name = st.session_state.get('name', 'Anonymous')  # Use 'name'
-                            message_id = add_message(
-                                st.session_state.current_conversation_id,
-                                "user",
-                                suggestions[i],
-                                user_name  # Authenticated user name
-                            )
+                            message_id = add_message( st.session_state.current_conversation_id, "user",suggestions[i],user_name)
                             st.session_state.messages = get_messages(st.session_state.current_conversation_id)
+                            title = suggestions[i][:30] + ('...' if len(suggestions[i]) > 30 else '')
+                            update_conversation_title(st.session_state.current_conversation_id, title)
                             st.session_state.is_thinking = True
                             st.rerun()
 
