@@ -570,70 +570,26 @@ def sidebar():
         st.session_state.messages = []
         st.rerun()
 
-    # Chat History Section
-    st.sidebar.markdown("""
-    <div class="sidebar-section-title" style="margin-top:20px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-        </svg>
-        <span>Chat History</span>
-    </div>
-    """, unsafe_allow_html=True)
-
-    for conv_id, title, created_at in st.session_state.conversations:
-        col1, col2 = st.sidebar.columns([5, 1])
-
-        with col1:
-            is_active = conv_id == st.session_state.current_conversation_id
-            button_type = "primary" if is_active else "secondary"
-            display_title = f"📝 {title}" if is_active else title
-
-            if st.button(
-                    display_title,
-                    key=f"conv_{conv_id}",
-                    use_container_width=True,
-                    type=button_type
-            ):
-                logger.info(f"Switching to conversation: {conv_id}")
-                st.session_state.current_conversation_id = conv_id
-                st.session_state.messages = get_messages(conv_id)
-                st.rerun()
-
-        with col2:
-            if st.button("🗑️", key=f"delete_{conv_id}", help="Delete this conversation"):
-                logger.info(f"Deleting conversation: {conv_id}")
-                delete_conversation(conv_id)
-                st.session_state.conversations = get_conversations(current_user)
-
-                if st.session_state.conversations:
-                    if conv_id == st.session_state.current_conversation_id:
-                        st.session_state.current_conversation_id = st.session_state.conversations[0][0]
-                        st.session_state.messages = get_messages(st.session_state.current_conversation_id)
-                else:
-                    new_id = create_conversation(created_by=current_user)
-                    st.session_state.current_conversation_id = new_id
-                    st.session_state.conversations = get_conversations(current_user)
-                    st.session_state.messages = []
-
-                st.rerun()
-
-    # LLM Selection Section
     st.sidebar.markdown("### 🤖 Chat Model Selection")
 
     # Get current LLM from session state or default
-    current_llm = st.session_state.get('selected_chat_model', ChatModel.GPT_4O_MINI.value)
+    model_options = ["__select__"] + [model.value for model in ChatModel]
 
+    # Use "__select__" as default if not previously selected
+    current_llm = st.session_state.get("selected_chat_model", "__select__")
+
+    # Render selectbox
     selected_llm = st.sidebar.selectbox(
         "Choose Chat Model:",
-        options=[model.value for model in ChatModel],
+        options=model_options,
         format_func=lambda x: {
+            "__select__": "🔍 Select a model...",
             "gpt-4o-mini": "🚀 GPT-4o Mini (Fast & Efficient)",
             "deepseek-r1:latest": "🔥 DeepSeek R1 (Local)",
             "llama3.2:1b": "🦙 Llama 3.2 (Local)",
             "gemma2:2b": "🌪️ Gemma (Local)"
         }.get(x, x),
-        index=[model.value for model in ChatModel].index(current_llm) if current_llm in [model.value for model in
-                                                                                         ChatModel] else 0,
+        index=model_options.index(current_llm) if current_llm in model_options else 0,
         help="Select the AI model for conversations"
     )
 
@@ -676,7 +632,6 @@ def sidebar():
         else:
             st.session_state.openai_key_configured = True
 
-
     # Determine compatible embedding model
     chat_model = st.session_state.get('selected_chat_model')
     logger.info(f"Current chat model in sidebar: {chat_model}")
@@ -706,14 +661,14 @@ def sidebar():
 
     # Knowledge Bases section
     st.sidebar.markdown("""
-    <div class="sidebar-section-title">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-        </svg>
-        <span>Knowledge Bases</span>
-    </div>
-    """, unsafe_allow_html=True)
+        <div class="sidebar-section-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+            </svg>
+            <span>Knowledge Bases</span>
+        </div>
+        """, unsafe_allow_html=True)
 
     # Get compatible knowledge bases
     compatible_kbs = get_compatible_knowledge_bases(compatible_embedding)
@@ -814,9 +769,61 @@ def sidebar():
     # Professional plan indicator
     st.sidebar.markdown("<hr style='margin-top:20px; margin-bottom:15px; border-color:rgba(255,255,255,0.1);'>",
                         unsafe_allow_html=True)
-    st.sidebar.markdown(
-        "<div style='display:flex; align-items:center;'><span style='color:#a78bfa;margin-right:8px;'>👤</span> <span style='font-weight:500;'>Professional Plan</span></div>",
-        unsafe_allow_html=True)
+    # st.sidebar.markdown(
+    #     "<div style='display:flex; align-items:center;'><span style='color:#a78bfa;margin-right:8px;'>👤</span> <span style='font-weight:500;'>Professional Plan</span></div>",
+    #     unsafe_allow_html=True)
+
+    # Chat History Section
+    st.sidebar.markdown("""
+    <div class="sidebar-section-title" style="margin-top:20px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+        </svg>
+        <span>Chat History</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    for conv_id, title, created_at in st.session_state.conversations:
+        col1, col2 = st.sidebar.columns([5, 1])
+
+        with col1:
+            is_active = conv_id == st.session_state.current_conversation_id
+            button_type = "primary" if is_active else "secondary"
+            display_title = f"📝 {title}" if is_active else title
+
+            if st.button(
+                    display_title,
+                    key=f"conv_{conv_id}",
+                    use_container_width=True,
+                    type=button_type
+            ):
+                logger.info(f"Switching to conversation: {conv_id}")
+                st.session_state.current_conversation_id = conv_id
+                st.session_state.messages = get_messages(conv_id)
+                st.rerun()
+
+        with col2:
+            if st.button("🗑️", key=f"delete_{conv_id}", help="Delete this conversation"):
+                logger.info(f"Deleting conversation: {conv_id}")
+                delete_conversation(conv_id)
+                st.session_state.conversations = get_conversations(current_user)
+
+                if st.session_state.conversations:
+                    if conv_id == st.session_state.current_conversation_id:
+                        st.session_state.current_conversation_id = st.session_state.conversations[0][0]
+                        st.session_state.messages = get_messages(st.session_state.current_conversation_id)
+                else:
+                    new_id = create_conversation(created_by=current_user)
+                    st.session_state.current_conversation_id = new_id
+                    st.session_state.conversations = get_conversations(current_user)
+                    st.session_state.messages = []
+
+                st.rerun()
+
+    # LLM Selection Section
+
+
+
 
 
 def chat_interface():
@@ -860,22 +867,38 @@ def chat_interface():
     # Upload documents section (only show in RAG mode)
     if not st.session_state.direct_chat_mode:
         with st.expander("📁 Upload Documents", expanded=False):
+            # Add placeholder to the top of the list
+            embedding_options = ["__select__"] + [model.value for model in EmbeddingModel]
+
             embedding_choice = st.selectbox(
                 "🧠 Embedding Model:",
-                options=[model.value for model in EmbeddingModel],
+                options=embedding_options,
                 format_func=lambda x: {
+                    "__select__": "🔍 Select an embedding model...",
                     "text-embedding-3-small": "OpenAI (text-embedding-3-small)",
                     "deepseek-r1:latest": "DeepSeek (deepseek-r1:latest)"
                 }.get(x, x),
                 index=0,
                 help="Choose the embedding model for processing documents"
             )
-            if embedding_choice == EmbeddingModel.OPEN_AI.value:
-                chunking_choice = "semantic_percentile"
-            else:
-                chunking_choice = "recursive"
 
-            st.write(f"Selected Chunking Strategy: `{chunking_choice}`")
+            if embedding_choice == "__select__":
+                st.warning("⚠️ Please select an embedding model to proceed.")
+            else:
+                if embedding_choice == EmbeddingModel.OPEN_AI.value:
+                    chunking_choice = "semantic_percentile"
+                    # st.info(f"📌 Chunking strategy: `{chunking_choice}`")
+                    st.write(f"Selected Chunking Strategy: `{chunking_choice}`")
+                else:
+                    chunking_choice = "recursive"
+                    # st.info(f"📌 Chunking strategy: `{chunking_choice}`")
+                    st.write(f"Selected Chunking Strategy: `{chunking_choice}`")
+
+                # Optionally store or display it
+                st.session_state["selected_embedding_model"] = embedding_choice
+
+
+
             # Upload area with better styling
             st.markdown("<div class='upload-area' style='padding:25px;'>", unsafe_allow_html=True)
             uploaded_files = st.file_uploader(
@@ -1132,7 +1155,8 @@ def chat_interface():
 
         # Chat input with better styling
     user_input = st.chat_input("Type your message here...")
-
+    if current_chat_model == '__select__':
+        st.error("Please Select Chat Model From Sidebar")
     if user_input:
         logger.info(f"Received user input: {user_input[:50]}...")
         user_name = st.session_state.get('name', 'Anonymous')  # Use 'name' not 'username'
