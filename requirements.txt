@@ -1,6 +1,6 @@
 # Core dependencies
 streamlit>=1.26.0
-streamlit-authenticator
+streamlit-authenticator==0.2.3
 langchain>=0.0.267
 langchain-openai>=0.0.2
 langchain-community>=0.0.13
