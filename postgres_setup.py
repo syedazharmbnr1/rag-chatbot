@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("setup")
 
 # Database connection string
-DATABASE_URL = "postgresql://postgres:Kkiraak1234@localhost/rag-chatbot"
+DATABASE_URL = "postgresql://postgres:789456123@localhost:5432/rag-chatbot"
 
 
 def test_connection():

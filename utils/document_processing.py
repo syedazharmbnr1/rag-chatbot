@@ -37,8 +37,8 @@ class ChunkingStrategy(Enum):
 class ChatModel(Enum):
     GPT_4O_MINI = "gpt-4o-mini"
     DEEPSEEK_R1 = "deepseek-r1:latest"
-    LLAMA_3_2_1B = "llama3.2:1b"  # ADD THIS
-    GEMMA_2_2B = "gemma2:2b"
+    LLAMA_3_2_1B = "llama3.2:latest"  # ADD THIS
+    GEMMA_2_2B = "gemma2:latest"
 
     def folder_name(self):
         # Explicit folder mapping

@@ -3,7 +3,7 @@ from psycopg2 import IntegrityError, sql
 from urllib.parse import urlparse
 from typing import List, Dict, Any, Optional, Tuple
 
-DATABASE_URL = "postgresql://postgres:Kkiraak1234@localhost:5432/chatbot-database"  # Update this accordingly
+DATABASE_URL = "postgresql://postgres:****@localhost:5432/chatbot-database"  # Update this accordingly
 
 def create_database_if_not_exists_from_url(database_url):
     try:
@@ -57,7 +57,7 @@ def create_connection():
             print(f"❌ Unexpected connection error: {e}")
             return None
     else:
-        print("❌ Could not ensure database exists.")
+        print("❌ Could not ens  ure database exists.")
         return None
 
 def init_database():
@@ -427,4 +427,5 @@ def set_active_knowledge_base(kb_name: str) -> None:
 #         cursor.close()
 #         conn.close()
 
-# if __name__=="__main__":
+if __name__=="__main__":
+    init_database()
