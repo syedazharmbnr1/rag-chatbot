@@ -137,6 +137,17 @@ def init_database():
         );
         ''')
 
+        cursor.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT UNIQUE NOT NULL,
+                    full_name TEXT,
+                    email TEXT,
+                    hashed_password TEXT NOT NULL,
+                    disabled BOOLEAN DEFAULT FALSE
+                );
+                ''')
+
         conn.commit()
         cursor.close()
         print("✅ Database tables initialized successfully")
@@ -147,6 +158,52 @@ def init_database():
         raise
     finally:
         conn.close()
+
+def create_user(username: str, full_name: str, email: str, hashed_password: str):
+    conn = create_connection()
+    if not conn:
+        return False
+    try:
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO users (username, full_name, email, hashed_password, disabled)
+            VALUES (%s, %s, %s, %s, FALSE)
+        """, (username, full_name, email, hashed_password))
+        conn.commit()
+        return True
+    except psycopg2.errors.UniqueViolation:
+        print("❌ Username or email already exists.")
+        return False
+    except Exception as e:
+        print("❌ Error inserting user:", e)
+        return False
+    finally:
+        conn.close()
+
+
+
+def get_user_from_db(username: str):
+    conn = create_connection()
+    if conn is None:
+        return None
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT username, full_name, email, hashed_password, disabled FROM users WHERE username = %s", (username,))
+        row = cursor.fetchone()
+        if row:
+            return {
+                "username": row[0],
+                "full_name": row[1],
+                "email": row[2],
+                "hashed_password": row[3],
+                "disabled": row[4],
+            }
+    except Exception as e:
+        print(f"❌ Error fetching user: {e}")
+    finally:
+        conn.close()
+    return None
+
 
 
 def get_conversations(user_name: str = None) -> List[Tuple[int, str, str]]:

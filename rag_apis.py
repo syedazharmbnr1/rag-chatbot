@@ -2,7 +2,6 @@ from fastapi import FastAPI, HTTPException, Depends, UploadFile, File, Form, sta
 from pydantic import BaseModel
 from typing import Optional, List
 import os
-from utils.auth import get_hashed_password
 from uuid import uuid4
 import requests
 from langchain_openai import ChatOpenAI
@@ -14,7 +13,6 @@ from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from datetime import datetime
 from fastapi.security import OAuth2PasswordRequestForm
-from utils.auth import verify_password, create_access_token, create_refresh_token
 
 
 
@@ -51,39 +49,69 @@ class LoginRequest(BaseModel):
     username: str
     password: str
 
-@app.post('/signup', summary="Create new user", response_model=UserOut)
-async def create_user(data: UserAuth):
-    if data.email in users_db:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User with this email already exists"
-        )
 
-    user = {
-        'email': data.email,
-        'password': get_hashed_password(data.password),
-        'id': str(uuid4())
-    }
-    users_db[data.email] = user
-    return UserOut(email=user['email'], id=user['id'])
+##########################################################
+from datetime import datetime, timedelta, timezone
+from typing import Annotated
+import jwt
+from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
+from utils.auth import Token, authenticate_user, ACCESS_TOKEN_EXPIRE_MINUTES, User, get_current_active_user, create_access_token, get_password_hash, SignUpModel, get_user
+from utils.database import create_user
+from psycopg2.errors import UniqueViolation
+from psycopg2 import IntegrityError
 
-@app.post('/login', summary="Create access and refresh tokens for user", response_model=TokenSchema)
-async def login(data: LoginRequest):
-    user = users_db.get(data.username)
-    if user is None:
+# 🧪 Routes
+
+@app.post("/signup")
+async def signup(user: SignUpModel):
+    # Check if user already exists
+    if get_user(user.username):
+        raise HTTPException(status_code=400, detail="Username already taken")
+
+    hashed_pw = get_password_hash(user.password)
+
+    try:
+        success = create_user(user.username, user.full_name, user.email, hashed_pw)
+    except IntegrityError:
+        raise HTTPException(status_code=400, detail="Email or username already exists")
+
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to create user")
+
+    return {"message": "✅ User created successfully. Please log in."}
+
+
+@app.post("/token", response_model=Token)
+async def login_for_access_token(
+    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
+):
+    user = authenticate_user(form_data.username, form_data.password)
+    if not user:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect email or password"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
         )
-    if not verify_password(data.password, user['password']):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Incorrect email or password"
-        )
-    return {
-        "access_token": create_access_token(user['email']),
-        "refresh_token": create_refresh_token(user['email']),
-    }
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": user.username}, expires_delta=access_token_expires
+    )
+    return Token(access_token=access_token, token_type="bearer")
+
+@app.get("/users/me/", response_model=User)
+async def read_users_me(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+):
+    return current_user
+
+@app.get("/users/me/items/")
+async def read_own_items(
+    current_user: Annotated[User, Depends(get_current_active_user)],
+):
+    return [{"item_id": "Foo", "owner": current_user.username}]
+
 
 # ------------------ Conversation Models ------------------
 class ConversationOut(BaseModel):
