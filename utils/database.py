@@ -3,7 +3,7 @@ from psycopg2 import IntegrityError, sql
 from urllib.parse import urlparse
 from typing import List, Dict, Any, Optional, Tuple
 
-DATABASE_URL = "postgresql://postgres:****@localhost:5432/chatbot-database"  # Update this accordingly
+DATABASE_URL = "postgresql://postgres:*****@localhost:5432/chatbot-database"  # Update this accordingly
 
 def create_database_if_not_exists_from_url(database_url):
     try:
