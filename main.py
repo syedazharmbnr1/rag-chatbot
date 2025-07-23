@@ -881,7 +881,7 @@ def chat_interface():
                 index=0,
                 help="Choose the embedding model for processing documents"
             )
-
+            chunking_choice = None
             if embedding_choice == "__select__":
                 st.warning("⚠️ Please select an embedding model to proceed.")
             else:
