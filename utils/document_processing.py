@@ -26,7 +26,7 @@ logger = logging.getLogger("rag-chatbot.document_processing")
 class EmbeddingModel(Enum):
     OPEN_AI = "text-embedding-3-small"
     DEEPSEEK = "deepseek-r1:latest"
-    LLAMA_3_2_1B = "llama3.2:1b"     # ADD THIS
+    LLAMA_3_2_1B = "llama3.2:latest"     # ADD THIS
     GEMMA_2_2B = "gemma2:2b"
 
 class ChunkingStrategy(Enum):
@@ -557,8 +557,8 @@ def migrate_existing_kbs():
             embedding_model = get_kb_embedding_model(kb_name)
 
             if not embedding_model:
-                logger.warning(f"Could not find embedding model for {kb_name}, assuming llama3.2:1b")
-                embedding_model = "llama3.2:1b"
+                logger.warning(f"Could not find embedding model for {kb_name}, assuming llama3.2:latest")
+                embedding_model = "llama3.2:latest"
 
             # Create new path
             new_path = get_faiss_index_path(kb_name, embedding_model)
@@ -582,6 +582,6 @@ def migrate_existing_kbs():
 
 if __name__ =="__main__":
     # migrate_existing_kbs()
-    # result = get_retriever("kb_test","llama3.2:1b")
+    # result = get_retriever("kb_test","llama3.2:latest")
     # print(result)
     retrieve_documents("gemma2/kb_apache_hadoop","gemma2:2b","what is inside the docs")

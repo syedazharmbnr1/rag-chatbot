@@ -336,12 +336,14 @@ def init_session_state():
 
     if "openai_key_configured" not in st.session_state:
         key = st.session_state.settings.get("openai_key")
-        if key and key != "sk-proj-pJx" and key != "sk-":  # Check if it's not the placeholder
+        if key and key != "sk-proj-pJx" and key != "sk-" and not key.startswith("sk-proj-"):  # Check if it's not the placeholder
             os.environ["OPENAI_API_KEY"] = key
             st.session_state.openai_key_configured = True
-            logger.info("OpenAI API key configured")
+            st.session_state.openai_api_key = key  # Ensure it's in session state
+            logger.info("OpenAI API key configured from settings")
         else:
             st.session_state.openai_key_configured = False
+            st.session_state.openai_api_key = ""  # Initialize as empty
             logger.warning("OpenAI API key not configured")
 
     if "active_kb" not in st.session_state:
@@ -586,7 +588,7 @@ def sidebar():
             "__select__": "🔍 Select a model...",
             "gpt-4o-mini": "🚀 GPT-4o Mini (Fast & Efficient)",
             "deepseek-r1:latest": "🔥 DeepSeek R1 (Local)",
-            "llama3.2:1b": "🦙 Llama 3.2 (Local)",
+            "llama3.2:latest": "🦙 Llama 3.2 (Local)",
             "gemma2:2b": "🌪️ Gemma (Local)"
         }.get(x, x),
         index=model_options.index(current_llm) if current_llm in model_options else 0,
@@ -606,31 +608,52 @@ def sidebar():
     if selected_llm.startswith("gpt"):
         st.sidebar.markdown("### 🔑 OpenAI API Key")
 
-        # Get API key from session state or environment
+        # Initialize API key in session state if not present
         if "openai_api_key" not in st.session_state:
-            st.session_state.openai_api_key = os.getenv("OPENAI_API_KEY", "")
+            # First check environment variable, then settings
+            env_key = os.getenv("OPENAI_API_KEY", "")
+            settings_key = st.session_state.settings.get("openai_key", "")
+            
+            # Use env key if valid, otherwise use settings key
+            if env_key and not env_key.startswith("sk-proj-"):
+                st.session_state.openai_api_key = env_key
+            elif settings_key and not settings_key.startswith("sk-proj-"):
+                st.session_state.openai_api_key = settings_key
+            else:
+                st.session_state.openai_api_key = ""
+
+        # Display current key status (masked)
+        current_key = st.session_state.openai_api_key
+        if current_key:
+            masked_key = current_key[:7] + "..." + current_key[-4:] if len(current_key) > 11 else "Hidden"
+            st.sidebar.info(f"📌 Current key: {masked_key}")
 
         api_key_input = st.sidebar.text_input(
             "Enter your OpenAI API Key:",
-            value=st.session_state.openai_api_key if st.session_state.openai_api_key and not st.session_state.openai_api_key.startswith(
-                "sk-proj-") else "",
+            value="",  # Always show empty for security
             type="password",
-            help="Get your API key from https://platform.openai.com/api-keys"
+            placeholder="sk-...",
+            help="Get your API key from https://platform.openai.com/api-keys",
+            key="openai_api_key_input"
         )
 
-        if api_key_input != st.session_state.openai_api_key:
+        # Only update if a new key is entered
+        if api_key_input and api_key_input != st.session_state.openai_api_key:
             st.session_state.openai_api_key = api_key_input
             os.environ["OPENAI_API_KEY"] = api_key_input
-            if api_key_input:
-                st.session_state.openai_key_configured = True
-                st.sidebar.success("✅ API Key updated")
-            else:
-                st.session_state.openai_key_configured = False
-
-        if not st.session_state.openai_api_key:
-            st.sidebar.warning("⚠️ API Key required for OpenAI models")
-        else:
             st.session_state.openai_key_configured = True
+            # Also save to settings for persistence
+            st.session_state.settings["openai_key"] = api_key_input
+            st.sidebar.success("✅ API Key updated and saved")
+            # Force a small delay to ensure state is saved
+            time.sleep(0.1)
+
+        # Check if we have a valid key
+        if st.session_state.openai_api_key:
+            st.session_state.openai_key_configured = True
+        else:
+            st.session_state.openai_key_configured = False
+            st.sidebar.warning("⚠️ API Key required for OpenAI models")
 
     # Determine compatible embedding model
     chat_model = st.session_state.get('selected_chat_model')
@@ -639,7 +662,7 @@ def sidebar():
     if chat_model.startswith("gpt"):
         compatible_embedding = "text-embedding-3-small"
     elif chat_model.startswith("llama"):
-        compatible_embedding = "llama3.2:1b"
+        compatible_embedding = "llama3.2:latest"
     elif chat_model.startswith("deepseek"):
         compatible_embedding = "deepseek-r1:latest"
     elif chat_model.startswith("gemma"):
@@ -1242,7 +1265,7 @@ def handle_ai_response():
                 if chat_model.startswith("gpt"):
                     embedding_model = "text-embedding-3-small"
                 elif chat_model.startswith("llama"):
-                    embedding_model = "llama3.2:1b"
+                    embedding_model = "llama3.2:latest"
                 elif chat_model.startswith("deepseek"):
                     embedding_model = "deepseek-r1:latest"
                 elif chat_model.startswith("gemma"):
