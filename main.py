@@ -905,6 +905,9 @@ def chat_interface():
                 help="Choose the embedding model for processing documents"
             )
 
+            # Initialize chunking_choice with a default value
+            chunking_choice = "recursive"  # Default value
+            
             if embedding_choice == "__select__":
                 st.warning("⚠️ Please select an embedding model to proceed.")
             else:
@@ -947,8 +950,8 @@ def chat_interface():
                     f"<div class='upload-status {status_type}' style='display:flex; align-items:center;'><span style='margin-right:5px;'>{icon}</span> {status_msg}</div>",
                     unsafe_allow_html=True)
 
-            # Auto-process files when uploaded
-            if uploaded_files and not st.session_state.processing_file:
+            # Auto-process files when uploaded (only if embedding model is selected)
+            if uploaded_files and not st.session_state.processing_file and embedding_choice != "__select__":
                 with st.spinner("Processing files..."):
                     process_uploaded_files(uploaded_files, embedding_choice, chunking_choice)
 
