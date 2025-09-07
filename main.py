@@ -59,183 +59,6 @@ st.set_page_config(
 # Custom CSS
 import streamlit as st
 
-def add_custom_css():
-    st.markdown("""
-    <style>
-    @font-face {
-      font-family: "racForward";
-      src: url("../fonts/racForward-Regular.otf") format("opentype");
-      font-weight: 400;
-    }
-    @font-face {
-      font-family: "racForward";
-      src: url("../fonts/racForward-Medium.otf") format("opentype");
-      font-weight: 500;
-    }
-    @font-face {
-      font-family: "racForward";
-      src: url("../fonts/racForward-Bold.otf") format("opentype");
-      font-weight: 700;
-    }
-
-    :root {
-      --rac-purple-dark: #43206f;
-      --rac-purple:       #5b2d91;
-      --rac-pink:         #ff0066;
-      --rac-pink-dark:    #e0005b;
-      --rac-lavender:     #f3f0f9;
-      --rac-light-gray:   #f7f7f8;
-      --rac-gray:         #4b5563;
-      --rac-green:        #00c389;
-
-      --custom-dark:      #333446;
-      --custom-muted:     #7F8CAA;
-      --custom-pale:      #B8CFCE;
-      --custom-offwhite:  #EAEFEF;
-    }
-
-    * {
-      font-family: "racForward", "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
-    }
-
-    #MainMenu, footer, header { display: none !important; }
-
-    /* Sidebar background */
-    section[data-testid="stSidebar"] {
-        background-color: #D1D8BE !important;
-    }
-
-    /* Sidebar button */
-    section[data-testid="stSidebar"] button {
-        background-color: #A7C1A8 !important;
-        color: black !important;
-        border: 1px solid #819A91 !important;
-        border-radius: 6px !important;
-    }
-
-    /* Hover effect on sidebar buttons */
-    section[data-testid="stSidebar"] button:hover {
-        background-color: #819A91 !important;
-        color: white !important;
-        border-color: #819A91 !important;
-    }
-
-    /* Body background */
-    .main {
-        background-color: #EEEFE0 !important;
-    }
-
-    /* Optional: change text color in sidebar for better contrast */
-    section[data-testid="stSidebar"] * {
-        color: #333 !important;
-    }
-
-    .kb-card {
-      background: #EEEFE0 !important;
-      border: 1px solid var(--custom-pale) !important;
-    }
-
-    .kb-card.active {
-      background: var(--rac-lavender) !important;
-      border-color: var(--rac-purple) !important;
-    }
-
-    .mode-indicator.rag {
-      background: var(--rac-purple) !important;
-      color: white !important;
-    }
-
-    .mode-indicator.openai {
-      background: var(--rac-gray) !important;
-      color: white !important;
-    }
-
-    .main .block-container {
-      padding-top: 30px !important;
-      max-width: 1200px !important;
-    }
-
-    [data-testid="rachatMessage"] {
-      background: transparent !important;
-    }
-
-    [data-testid="rachatMessage"] [data-testid="rachatMessageContent"] {
-      background: var(--custom-offwhite) !important;
-      color: #000 !important;
-    }
-
-    [data-testid="rachatMessage"][data-testid="rachatMessageUser"] [data-testid="rachatMessageContent"] {
-      background: var(--rac-purple) !important;
-      color: white !important;
-    }
-
-    .stButton > button {
-      background: var(--rac-lavender) !important;
-      color: var(--rac-purple-dark) !important;
-      border: 1px solid #d1d5db !important;
-    }
-
-    .stButton > button:hover {
-      background: var(--custom-offwhite) !important;
-    }
-
-    .stButton > button[data-testid="baseButton-primary"] {
-      background: var(--rac-pink) !important;
-    }
-
-    .stButton > button[data-testid="baseButton-primary"]:hover {
-      background: var(--rac-pink-dark) !important;
-    }
-
-    .stButton > button[data-testid="baseButton-secondary"] {
-      background: var(--rac-gray) !important;
-    }
-
-    .stButton > button[data-testid="baseButton-secondary"]:hover {
-      background: var(--rac-purple) !important;
-    }
-
-    .stProgress > div > div > div {
-      background: var(--rac-pink) !important;
-    }
-
-    .upload-area {
-      border: 2px dashed var(--rac-purple);
-      background: var(--custom-offwhite);
-    }
-
-    .upload-area:hover {
-      background: #ebe6f3;
-    }
-
-    div[data-baseweb="select"] {
-      background: white !important;
-      color: var(--rac-purple-dark) !important;
-    }
-
-    div[data-baseweb="select"]:hover {
-      border-color: var(--rac-purple) !important;
-    }
-
-    div[data-baseweb="tag"] {
-      background: var(--rac-purple) !important;
-    }
-
-    @keyframes pulse {
-      0% { opacity: .4; transform: scale(1); }
-      50% { opacity: 1; transform: scale(1.3); }
-      100% { opacity: .4; transform: scale(1); }
-    }
-
-    .thinking-dot {
-      background: var(--rac-purple);
-      animation: pulse 1.5s infinite;
-    }
-
-    </style>
-    """, unsafe_allow_html=True)
-
-
 def api_key_required_screen():
     st.error("⚠️ OpenAI API Key Required")
     st.markdown("""
@@ -897,37 +720,38 @@ def chat_interface():
                 # Optionally store or display it
                 st.session_state["selected_embedding_model"] = embedding_choice
 
-
-
             # Upload area with better styling
-            st.markdown("<div class='upload-area' style='padding:25px;'>", unsafe_allow_html=True)
-            uploaded_files = st.file_uploader(
-                "Drag & drop PDF or DOCX files here",
-                type=["pdf", "docx"],
-                accept_multiple_files=True,
-                key="main_file_uploader",
-                label_visibility="collapsed"
-            )
-            st.markdown("""
-            <div style='text-align:center; margin-top:10px; font-size:14px; color:#6b7280;'>
-                Supported formats: PDF, DOCX
-            </div>
-            """, unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+                if embedding_choice:
+                    st.markdown("<div class='upload-area' style='padding:25px;'>", unsafe_allow_html=True)
+                    uploaded_files = st.file_uploader(
+                        "Drag & drop PDF or DOCX files here",
+                        type=["pdf", "docx"],
+                        accept_multiple_files=True,
+                        key="main_file_uploader",
+                        label_visibility="collapsed"
+                    )
+                else:
+                    st.error("Please Select Embedding Model to Proceed")
+                st.markdown("""
+                <div style='text-align:center; margin-top:10px; font-size:14px; color:#6b7280;'>
+                    Supported formats: PDF, DOCX
+                </div>
+                """, unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
 
-            # Display upload status if any - better styling
-            if st.session_state.upload_status:
-                status_type = st.session_state.upload_status["type"]
-                status_msg = st.session_state.upload_status["message"]
-                icon = "✅" if status_type == "success" else "❌"
-                st.markdown(
-                    f"<div class='upload-status {status_type}' style='display:flex; align-items:center;'><span style='margin-right:5px;'>{icon}</span> {status_msg}</div>",
-                    unsafe_allow_html=True)
+                # Display upload status if any - better styling
+                if st.session_state.upload_status:
+                    status_type = st.session_state.upload_status["type"]
+                    status_msg = st.session_state.upload_status["message"]
+                    icon = "✅" if status_type == "success" else "❌"
+                    st.markdown(
+                        f"<div class='upload-status {status_type}' style='display:flex; align-items:center;'><span style='margin-right:5px;'>{icon}</span> {status_msg}</div>",
+                        unsafe_allow_html=True)
 
-            # Auto-process files when uploaded
-            if uploaded_files and not st.session_state.processing_file:
-                with st.spinner("Processing files..."):
-                    process_uploaded_files(uploaded_files, embedding_choice, chunking_choice)
+                # Auto-process files when uploaded
+                if uploaded_files and not st.session_state.processing_file:
+                    with st.spinner("Processing files..."):
+                        process_uploaded_files(uploaded_files, embedding_choice, chunking_choice)
 
     # Knowledge Base Selector (only show in RAG mode)
     if not st.session_state.direct_chat_mode and st.session_state.kb_names and len(st.session_state.kb_names) > 0:
@@ -1325,8 +1149,6 @@ def handle_ai_response():
 def main():
     logger.info("Application starting")
 
-    # Apply custom CSS
-    # add_custom_css()
     is_authenticated = authenticate_user()
     if is_authenticated:
     # Initialize session state

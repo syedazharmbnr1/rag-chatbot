@@ -11,7 +11,7 @@ from enum import Enum
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
 from langchain_ollama import OllamaEmbeddings
 from langchain.text_splitter import (CharacterTextSplitter, RecursiveCharacterTextSplitter)
-from langchain_huggingface import HuggingFaceEmbeddings
+# from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_experimental.text_splitter import SemanticChunker
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
@@ -165,9 +165,7 @@ def initialize_embedding_model(embedding_model):
             logger.debug(f"Initialized Ollama embedding model: {embedding_model}")
             return embeddings
         else:  # Default to Hugging Face models
-            embeddings = HuggingFaceEmbeddings(model_name=embedding_model)
-            logger.debug(f"Initialized Hugging Face embedding model: {embedding_model}")
-            return embeddings
+            return "Please Select Embedding model"
     except Exception as e:
         logger.exception(f"Error initializing embedding model {embedding_model}: {str(e)}")
         raise
@@ -202,8 +200,6 @@ def create_chunking(
             )
             chunked_documents = text_splitter.split_documents(documents)
             return chunked_documents
-        elif chunking_type == "semantic_chunker":
-            text_splitter = SemanticChunker(HuggingFaceEmbeddings())
         elif chunking_type == "semantic_percentile":
             logger.debug(f"Using SemanticChunker with percentile={percentile}")
             # Use the same embedding model as selected by user
