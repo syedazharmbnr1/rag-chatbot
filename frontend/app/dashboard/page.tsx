@@ -3,7 +3,22 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
- import { Trash2 } from "lucide-react"; 
+import { Trash2 } from "lucide-react";
+
+// UUID generation utility with fallback
+function generateUUID(): string {
+  // Try to use crypto.randomUUID if available
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  
+  // Fallback for environments without crypto.randomUUID
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+} 
 
 type Message = {
   id: string;
@@ -235,7 +250,7 @@ export default function DashboardPage() {
     const userMessage = {
       role: 'user' as const,
       content: userInput,
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       user_name: 'You',
       timestamp: new Date()
     };
@@ -286,7 +301,7 @@ export default function DashboardPage() {
       const assistantMessage = {
         role: 'assistant' as const,
         content: data.response,
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         timestamp: new Date(),
         sources: data.sources || undefined
       };
