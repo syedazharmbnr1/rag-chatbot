@@ -58,7 +58,7 @@ from psycopg2.errors import UniqueViolation
 from psycopg2 import IntegrityError
 
 # 🧪 Routes
-
+# here is sign up
 @app.post("/signup")
 async def signup(user: SignUpModel):
     # Check if user already exists
