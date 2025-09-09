@@ -15,15 +15,25 @@ export async function loginUser(username: string, password: string): Promise<{ t
   });
 
   const rawText = await res.text();
+  console.log("Login response status:", res.status);
+  console.log("Login response text:", rawText);
 
   if (!res.ok) {
     console.error("Login failed:", rawText);
     throw new Error("Login failed");
   }
 
-  const json = JSON.parse(rawText);
+  let json;
+  try {
+    json = JSON.parse(rawText);
+  } catch (error) {
+    console.error("Failed to parse JSON response:", error);
+    console.error("Raw response:", rawText);
+    throw new Error("Invalid response format");
+  }
 
   if (!json.access_token) {
+    console.error("No access_token in response:", json);
     throw new Error("No access token received");
   }
 
@@ -41,12 +51,14 @@ export async function loginUser(username: string, password: string): Promise<{ t
       const jsonPayload = atob(padded);
       const payload = JSON.parse(jsonPayload);
       return typeof payload?.sub === "string" ? payload.sub : null;
-    } catch {
+    } catch (error) {
+      console.error("JWT decode error:", error);
       return null;
     }
   };
 
   const userId = decodeJwtSub(token) ?? username;
+  console.log("Decoded user_id:", userId);
 
   return { token, user_id: userId };
 }
