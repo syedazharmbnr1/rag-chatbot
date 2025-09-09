@@ -7,6 +7,8 @@ import logging
 import base64
 from typing import Dict, List, Any, Optional
 from enum import Enum
+import urllib.request
+import urllib.error
 
 from langchain_community.document_loaders import PyPDFLoader, Docx2txtLoader
 from langchain_ollama import OllamaEmbeddings
@@ -26,7 +28,7 @@ logger = logging.getLogger("rag-chatbot.document_processing")
 class EmbeddingModel(Enum):
     OPEN_AI = "text-embedding-3-small"
     DEEPSEEK = "deepseek-r1:latest"
-    LLAMA_3_2_1B = "llama3.2:1b"     # ADD THIS
+    LLAMA_3_2_1B = "llama3.2:latest"     # ADD THIS
     GEMMA_2_2B = "gemma2:2b"
 
 class ChunkingStrategy(Enum):
@@ -155,16 +157,27 @@ def initialize_embedding_model(embedding_model):
 
     try:
         if embedding_model.startswith("text"):  # OpenAI models
+            # Fast-fail if OpenAI key is missing
+            if not os.getenv("OPENAI_API_KEY"):
+                raise ValueError("OPENAI_API_KEY is not set in environment")
             embeddings = OpenAIEmbeddings(model=embedding_model)
             logger.debug(f"Initialized OpenAI embedding model: {embedding_model}")
             return embeddings
         elif embedding_model.startswith("deepseek") or embedding_model.startswith(
                 "llama") or embedding_model.startswith("gemma"):
-            # Use new langchain_ollama for all Ollama models
+            # Ensure Ollama is reachable to avoid long hangs
+            try:
+                with urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=3) as resp:
+                    if resp.status != 200:
+                        raise ValueError("Ollama service responded with non-200 status")
+            except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError) as e:
+                raise ValueError(f"Ollama service is not reachable on 127.0.0.1:11434: {e}")
+
+            # Use langchain_ollama for all Ollama models
             embeddings = OllamaEmbeddings(model=embedding_model)
             logger.debug(f"Initialized Ollama embedding model: {embedding_model}")
             return embeddings
-        else:  # Default to Hugging Face models
+        else:  # Default to unsupported models
             return "Please Select Embedding model"
     except Exception as e:
         logger.exception(f"Error initializing embedding model {embedding_model}: {str(e)}")
@@ -312,6 +325,8 @@ def process_and_chunk_file(
 
         # Initialize embedding model
         embedding_model = initialize_embedding_model(embedding_model_name)
+        if isinstance(embedding_model, str):
+            raise ValueError(f"Invalid embedding model specified: {embedding_model_name}")
 
         # Create chunks
         chunks = create_chunking(
@@ -340,6 +355,8 @@ def process_and_chunk_file(
         logger.debug(f"Preparing FAISS index at: {index_path}")
 
         try:
+            if not chunks:
+                raise ValueError("No chunks were produced from the document; cannot build index")
             if os.path.exists(index_path) and os.path.isdir(index_path):
                 # Try to update existing index
                 logger.info(f"Updating existing FAISS index at {index_path}")
@@ -351,8 +368,9 @@ def process_and_chunk_file(
             else:
                 # Create new index
                 logger.info(f"Creating new FAISS index at {index_path}")
-                os.makedirs(index_path, exist_ok=True)
+                # Build vectorstore first to avoid leaving empty directories on failure
                 vectorstore = FAISS.from_documents(documents=chunks, embedding=embedding_model)
+                os.makedirs(index_path, exist_ok=True)
                 vectorstore.save_local(index_path)
                 logger.debug(f"Created new FAISS index with {len(chunks)} chunks")
         except Exception as e:
@@ -369,8 +387,9 @@ def process_and_chunk_file(
                     logger.error(f"Failed to remove directory {index_path}: {str(rm_error)}")
 
             # Create a new clean index
-            os.makedirs(index_path, exist_ok=True)
+            # Build vectorstore first to avoid leaving empty directories on failure
             vectorstore = FAISS.from_documents(documents=chunks, embedding=embedding_model)
+            os.makedirs(index_path, exist_ok=True)
             vectorstore.save_local(index_path)
             logger.debug(f"Created new FAISS index with {len(chunks)} chunks after error recovery")
 
@@ -553,8 +572,8 @@ def migrate_existing_kbs():
             embedding_model = get_kb_embedding_model(kb_name)
 
             if not embedding_model:
-                logger.warning(f"Could not find embedding model for {kb_name}, assuming llama3.2:1b")
-                embedding_model = "llama3.2:1b"
+                logger.warning(f"Could not find embedding model for {kb_name}, assuming llama3.2:latest")
+                embedding_model = "llama3.2:latest"
 
             # Create new path
             new_path = get_faiss_index_path(kb_name, embedding_model)
@@ -578,6 +597,6 @@ def migrate_existing_kbs():
 
 if __name__ =="__main__":
     # migrate_existing_kbs()
-    # result = get_retriever("kb_test","llama3.2:1b")
+    # result = get_retriever("kb_test","llama3.2:latest")
     # print(result)
     retrieve_documents("gemma2/kb_apache_hadoop","gemma2:2b","what is inside the docs")

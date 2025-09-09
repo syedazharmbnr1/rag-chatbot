@@ -409,7 +409,7 @@ def sidebar():
             "__select__": "🔍 Select a model...",
             "gpt-4o-mini": "🚀 GPT-4o Mini (Fast & Efficient)",
             "deepseek-r1:latest": "🔥 DeepSeek R1 (Local)",
-            "llama3.2:1b": "🦙 Llama 3.2 (Local)",
+            "llama3.2:latest": "🦙 Llama 3.2 (Local)",
             "gemma2:2b": "🌪️ Gemma (Local)"
         }.get(x, x),
         index=model_options.index(current_llm) if current_llm in model_options else 0,
@@ -462,7 +462,7 @@ def sidebar():
     if chat_model.startswith("gpt"):
         compatible_embedding = "text-embedding-3-small"
     elif chat_model.startswith("llama"):
-        compatible_embedding = "llama3.2:1b"
+        compatible_embedding = "llama3.2:latest"
     elif chat_model.startswith("deepseek"):
         compatible_embedding = "deepseek-r1:latest"
     elif chat_model.startswith("gemma"):
@@ -1066,7 +1066,7 @@ def handle_ai_response():
                 if chat_model.startswith("gpt"):
                     embedding_model = "text-embedding-3-small"
                 elif chat_model.startswith("llama"):
-                    embedding_model = "llama3.2:1b"
+                    embedding_model = "llama3.2:latest"
                 elif chat_model.startswith("deepseek"):
                     embedding_model = "deepseek-r1:latest"
                 elif chat_model.startswith("gemma"):

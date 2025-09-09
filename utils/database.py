@@ -83,6 +83,12 @@ def init_database():
         );
         ''')
 
+        # Ensure conversation_type column exists
+        cursor.execute("""
+        ALTER TABLE conversations
+        ADD COLUMN IF NOT EXISTS conversation_type TEXT NOT NULL DEFAULT 'direct'
+        """)
+
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS messages (
             id SERIAL PRIMARY KEY,
@@ -182,6 +188,7 @@ def create_user(username: str, full_name: str, email: str, hashed_password: str)
 
 
 
+
 def get_user_from_db(username: str):
     conn = create_connection()
     if conn is None:
@@ -206,21 +213,22 @@ def get_user_from_db(username: str):
 
 
 
-def get_conversations(user_name: str = None) -> List[Tuple[int, str, str]]:
+
+def get_conversations(user_name: str = None) -> List[Tuple[int, str, str, str]]:
     conn = create_connection()
     cursor = conn.cursor()
 
     if user_name == "admin":
         # Admin sees all conversations
         cursor.execute("""
-        SELECT id, title, created_at 
+        SELECT id, title, created_at, conversation_type 
         FROM conversations 
         ORDER BY last_updated DESC
         """)
     elif user_name:
         # Regular users see only their conversations
         cursor.execute("""
-        SELECT id, title, created_at 
+        SELECT id, title, created_at, conversation_type 
         FROM conversations 
         WHERE created_by = %s 
         ORDER BY last_updated DESC
@@ -233,13 +241,13 @@ def get_conversations(user_name: str = None) -> List[Tuple[int, str, str]]:
     conn.close()
     return conversations
 
-def create_conversation(title="New Chat", created_by: str = "admin") -> int:
+def create_conversation(title="New Chat", created_by: str = "admin", conversation_type: str = 'direct') -> int:
     conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("""
-    INSERT INTO conversations (title, created_by) 
-    VALUES (%s, %s) RETURNING id
-    """, (title, created_by))
+    INSERT INTO conversations (title, created_by, conversation_type) 
+    VALUES (%s, %s, %s) RETURNING id
+    """, (title, created_by, conversation_type))
     conversation_id = cursor.fetchone()[0]
     conn.commit()
     conn.close()
@@ -315,6 +323,13 @@ def update_conversation_title(conversation_id: int, new_title: str) -> None:
     conn = create_connection()
     cursor = conn.cursor()
     cursor.execute("UPDATE conversations SET title = %s WHERE id = %s", (new_title, conversation_id))
+    conn.commit()
+    conn.close()
+
+def update_conversation_type(conversation_id: int, new_type: str) -> None:
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE conversations SET conversation_type = %s WHERE id = %s", (new_type, conversation_id))
     conn.commit()
     conn.close()
 
