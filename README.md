@@ -4,6 +4,21 @@ A powerful Retrieval-Augmented Generation (RAG) chatbot application with a clean
 
 ![ RAG Chatbot](https://raw.githubusercontent.com/syedazharmbnr1/rag-chatbot/refs/heads/main/image.png?token=GHSAT0AAAAAAC64DJZX3IG6FAFD5ISXOJ3K2AGJZQA)
 
+## Tech Stack
+
+### Frontend
+- **Streamlit** - Web application framework for creating the user interface
+- **HTML/CSS** - Custom styling with STC branding
+
+### Backend
+- **Python 3.10+** - Core programming language
+- **LangChain** - Framework for building LLM applications
+
+
+## Summary
+
+This RAG chatbot is an enterprise-grade solution that combines document processing with conversational AI to create an intelligent question-answering system. Users can upload their organizational documents (PDFs and Word files) which are then processed, chunked, and stored in vector databases as searchable knowledge bases. When users ask questions, the system performs semantic search to retrieve the most relevant document sections and uses GPT-4 to generate contextual, accurate responses with source citations. The application supports multiple knowledge bases for different departments or use cases, maintains conversation history, and provides both RAG-enhanced and direct AI chat modes, making it ideal for enterprise knowledge management and customer support scenarios.
+
 ## Features
 
 - **Document Processing**: Upload and process PDF and DOCX files into searchable knowledge bases

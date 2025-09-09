@@ -64,7 +64,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from utils.auth import Token, authenticate_user, ACCESS_TOKEN_EXPIRE_MINUTES, User, get_current_active_user, create_access_token, get_password_hash, SignUpModel, get_user
 from utils.database import create_user
-from psycopg2.errors import UniqueViolation
+# from psycopg2.errors import UniqueViolation
 from psycopg2 import IntegrityError
 
 # 🧪 Routes

@@ -28,7 +28,7 @@ type KnowledgeBase = {
   id?: string;
 };
 
-const API_URL = 'http://localhost:8000';
+const API_URL = 'http://34.10.53.15:8001';
 
 export default function DashboardPage() {
   const router = useRouter();

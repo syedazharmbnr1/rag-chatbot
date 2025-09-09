@@ -2,7 +2,7 @@ import streamlit as st
 import requests
 import jwt
 
-API_URL = "http://localhost:8000"  # Change to your FastAPI host if different
+API_URL = "http://34.10.53.15:8001"  # Change to your FastAPI host if different
 
 
 # ----------------------------
