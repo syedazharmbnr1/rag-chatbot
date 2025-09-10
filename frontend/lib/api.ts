@@ -1,6 +1,8 @@
 
 // lib/api.ts
 export async function loginUser(username: string, password: string): Promise<{ token: string, user_id: string }> {
+  console.log("Starting login for user:", username);
+  
   // Build OAuth2 form data
   const body = new URLSearchParams({
     username,
@@ -8,19 +10,59 @@ export async function loginUser(username: string, password: string): Promise<{ t
     grant_type: "password",
   });
 
-  const res = await fetch("http://34.10.53.15:8001/token", {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body,
-  });
+  console.log("Making request to login endpoint...");
+  
+  let rawText: string;
+  
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-  const rawText = await res.text();
-  console.log("Login response status:", res.status);
-  console.log("Login response text:", rawText);
+    const res = await fetch("http://34.10.53.15:8001/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+      signal: controller.signal,
+    });
 
-  if (!res.ok) {
-    console.error("Login failed:", rawText);
-    throw new Error("Login failed");
+    clearTimeout(timeoutId);
+
+    console.log("Response received, status:", res.status);
+    
+    rawText = await res.text();
+    console.log("Login response status:", res.status);
+    console.log("Login response text:", rawText);
+
+    if (!res.ok) {
+      console.error("Login failed with status:", res.status);
+      console.error("Login error response:", rawText);
+      
+      // More specific error messages
+      if (res.status === 401) {
+        throw new Error("Invalid username or password");
+      } else if (res.status === 422) {
+        throw new Error("Invalid request format");
+      } else if (res.status >= 500) {
+        throw new Error("Server error - please try again later");
+      } else {
+        throw new Error(`Login failed with status ${res.status}`);
+      }
+    }
+    
+    console.log("Login successful, parsing response...");
+  } catch (networkError) {
+    console.error("Network error during login:", networkError);
+    
+    if (networkError instanceof Error) {
+      if (networkError.name === 'AbortError') {
+        throw new Error("Login request timed out - please try again");
+      }
+      if (networkError.message.includes('fetch') || networkError.message.includes('network')) {
+        throw new Error("Unable to connect to server - please check your internet connection");
+      }
+    }
+    
+    throw networkError;
   }
 
   let json;
