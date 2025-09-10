@@ -18,7 +18,7 @@ export async function loginUser(username: string, password: string): Promise<{ t
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-    const res = await fetch("http://34.10.53.15:8001/token", {
+    const res = await fetch("http://34.70.203.66:8002/token", {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,

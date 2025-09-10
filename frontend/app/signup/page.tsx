@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const API_URL = 'http://34.10.53.15:8001';
+const API_URL = 'http://34.70.203.66:8002';
 
 export default function SignupPage() {
   const router = useRouter();
