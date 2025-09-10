@@ -28,7 +28,7 @@ type KnowledgeBase = {
   id?: string;
 };
 
-const API_URL = 'http://34.10.53.15:8001';
+const API_URL = 'http://localhost:8000';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -52,16 +52,13 @@ export default function DashboardPage() {
   
   // File Upload States
   const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [chunkingStrategy, setChunkingStrategy] = useState('semantic_percentile');
   const [isUploading, setIsUploading] = useState(false);
 
-  const embeddingModels = ['text-embedding-3-small', 'llama3.2:latest','deepseek-r1:latest','gemma2:2b'] as const;
+  const embeddingModels = ['text-embedding-3-small', 'llama3.2:latest'] as const;
   type EmbeddingModelKey = typeof embeddingModels[number];
   const chatModelMap: Record<EmbeddingModelKey, string> = {
     'text-embedding-3-small': 'gpt-4o-mini',
-    'llama3.2:latest': 'llama3.2:latest',
-    'deepseek-r1:latest': 'deepseek-r1:latest',
-    'gemma2:2b': 'gemma2:2b'
+    'llama3.2:latest': 'llama3.2:latest'
   };
 
   // Determine compatible embedding model from selected chat model, mirroring Streamlit logic
@@ -70,8 +67,6 @@ export default function DashboardPage() {
     let compatible: EmbeddingModelKey = 'text-embedding-3-small';
     if (m.startsWith('gpt')) compatible = 'text-embedding-3-small';
     else if (m.startsWith('llama')) compatible = 'llama3.2:latest';
-    else if (m.startsWith('deepseek')) compatible = 'deepseek-r1:latest';
-    else if (m.startsWith('gemma')) compatible = 'gemma2:2b';
     if (compatible !== embeddingModel) {
       setEmbeddingModel(compatible);
     }
@@ -147,6 +142,38 @@ export default function DashboardPage() {
     });
   };
 
+  // Function to refresh knowledge bases
+  const refreshKnowledgeBases = async () => {
+    if (!token) return;
+    
+    try {
+      const res = await authFetch(`${API_URL}/knowledge_bases/compatible?embedding_model=${encodeURIComponent(embeddingModel)}`);
+      const data = await res.json();
+      
+      // Backend returns List[str] of kb names. Normalize to { name } objects.
+      let normalized: KnowledgeBase[] = [];
+      if (Array.isArray(data)) {
+        if (data.length > 0 && typeof data[0] === 'string') {
+          normalized = (data as string[]).map((name) => ({ name }));
+        } else {
+          normalized = (data as any[]).map((kb) => ({ name: kb?.name ?? String(kb) }));
+        }
+      }
+      
+      setKnowledgeBases(normalized);
+      
+      // Auto-select the first KB if none is selected or if the current selection doesn't exist
+      const hasSelected = normalized.some(kb => kb.name === selectedKB);
+      if (!hasSelected && normalized.length > 0) {
+        setSelectedKB(normalized[0].name);
+      }
+      
+      console.log('Knowledge bases refreshed:', normalized);
+    } catch (err) {
+      console.error("Error refreshing knowledge bases:", err);
+    }
+  };
+
   // Fetch conversations
   useEffect(() => {
     if (!userId || !token) return;
@@ -192,6 +219,15 @@ export default function DashboardPage() {
       .then(res => res.json())
       .then(setMessages)
       .catch(err => console.error("Error fetching messages:", err));
+  }, [selectedConvId, token, chatMode]);
+
+  // Fetch messages for RAG chat
+  useEffect(() => {
+    if (!selectedConvId || !token || chatMode !== 'rag') return;
+    authFetch(`${API_URL}/messages?conversation_id=${selectedConvId}`)
+      .then(res => res.json())
+      .then(setRagMessages)
+      .catch(err => console.error("Error fetching RAG messages:", err));
   }, [selectedConvId, token, chatMode]);
 
   // Handle mode switching
@@ -293,12 +329,17 @@ export default function DashboardPage() {
 
       setCurrentMessages(prev => [...prev, assistantMessage]);
 
-      // Update conversation title for direct mode
-      if (chatMode === 'direct' && selectedConvId) {
+      // Update conversation title for both modes
+      if (selectedConvId) {
         try {
           await authFetch(`${API_URL}/update/conversations/${selectedConvId}/title`, {
             method: 'PUT'
           });
+          // Refresh conversations to get updated title
+          const updatedRes = await authFetch(`${API_URL}/conversations?user_id=${userId}`);
+          const updatedRows = await updatedRes.json();
+          const normalized = updatedRows.map((r: any) => ({ id: String(r.id), title: r.title, conversation_type: r.conversation_type || 'direct' } as any));
+          setConversations(normalized as any);
         } catch (err) {
           console.error("Error updating title:", err);
         }
@@ -319,7 +360,6 @@ export default function DashboardPage() {
       const formData = new FormData();
       formData.append('file', uploadFile);
       formData.append('embedding_model_name', embeddingModel);
-      formData.append('chunking_strategy_name', chunkingStrategy);
       formData.append('chunk_size', '1000');
       formData.append('chunk_overlap', '200');
 
@@ -332,12 +372,22 @@ export default function DashboardPage() {
         const result = await res.json();
         console.log('Upload successful:', result);
         setUploadFile(null);
-        // Refresh knowledge bases
-        const kbRes = await authFetch(`${API_URL}/knowledge_bases`);
-        const kbs = await kbRes.json();
-        setKnowledgeBases(kbs);
+        
+        // Refresh knowledge bases using the compatible endpoint to get properly formatted data
+        await refreshKnowledgeBases();
+        
+        // Auto-switch to RAG mode if not already in RAG mode
+        if (chatMode !== 'rag') {
+          setChatMode('rag');
+        }
+        
+        // Show success message
+        alert('Document uploaded successfully! You can now use it in RAG Chat.');
       } else {
-        console.error('Upload failed');
+        const errorText = await res.text();
+        console.error('Upload failed with status:', res.status);
+        console.error('Upload error response:', errorText);
+        alert(`Upload failed: ${res.status} - ${errorText}`);
       }
     } catch (err) {
       console.error("Error uploading file:", err);
@@ -373,8 +423,7 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between">
             {!sidebarCollapsed && (
               <div className='flex flex-row items-center'>
-                <img src="/ragchatbotbgremoved.png" alt="Logo" className="w- h-34 rounded-full " />
-                <p className="text-sm text-slate-500 mt-1">AI-Powered Conversations</p>
+                <img src="/rag-logo.png" alt="Logo" className="w- h-34 rounded-full " />                
               </div>
             )}
             <button
@@ -514,7 +563,7 @@ export default function DashboardPage() {
         {/* RAG Mode Info - Only show in RAG mode */}
         {!sidebarCollapsed && chatMode === 'rag' && (
           <div className="flex-1 overflow-y-auto p-4 space-y-2">
-            {conversations.filter((c: any) => (c.conversation_type || 'direct') === 'rag').map((conv: any) => (
+            {conversations.filter((c: any) => c.conversation_type === 'rag').map((conv: any) => (
               <div
                 key={conv.id}
                 className={`p-3 rounded-xl cursor-pointer transition-all duration-200 group flex items-center justify-between ${
@@ -547,7 +596,7 @@ export default function DashboardPage() {
                 </button>
               </div>
             ))}
-            {conversations.filter((c: any) => (c.conversation_type || 'direct') === 'rag').length === 0 && (
+            {conversations.filter((c: any) => c.conversation_type === 'rag').length === 0 && (
               <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
                 <h3 className="text-sm font-semibold text-emerald-700 mb-2">RAG Chat Mode</h3>
                 <p className="text-xs text-emerald-600 mb-3">
@@ -596,14 +645,9 @@ export default function DashboardPage() {
                   ))}
                 </select>
                 
-                <select
-                  value={chunkingStrategy}
-                  onChange={(e) => setChunkingStrategy(e.target.value)}
-                  className="w-full p-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="semantic_percentile">Semantic Percentile</option>
-                  <option value="recursive">Recursive</option>
-                </select>
+                <div className="text-xs text-slate-600 bg-slate-50 p-2 rounded-lg">
+                  <span className="font-medium">Chunking Strategy:</span> Auto-selected (Semantic for GPT, Recursive for Llama)
+                </div>
                 
                 <button
                   onClick={handleFileUpload}
@@ -641,7 +685,7 @@ export default function DashboardPage() {
                 <h1 className="text-2xl font-Mobile text-slate-800">
                   {chatMode === 'direct' 
                     ? (selectedConvId ? conversations.find(c => c.id === selectedConvId)?.title || 'Chat' : 'Select a Conversation')
-                    : 'RAG Chat'
+                    : (selectedConvId ? conversations.find(c => c.id === selectedConvId)?.title || 'RAG Chat' : 'RAG Chat')
                   }
                 </h1>
                 <span className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -675,8 +719,6 @@ export default function DashboardPage() {
                   >
                     <option value="gpt-4o-mini">GPT-4O Mini</option>
                     <option value="llama3.2:latest">Llama 3.2</option>
-                    <option value="deepseek-r1:latest">DeepSeek R1</option>
-                    <option value="gemma2:2b">Gemma 2B</option>
                   </select>
                 </div>
               ) : (

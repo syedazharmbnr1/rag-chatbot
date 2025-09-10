@@ -8,7 +8,7 @@ export async function loginUser(username: string, password: string): Promise<{ t
     grant_type: "password",
   });
 
-  const res = await fetch("http://34.10.53.15:8001/token", {
+  const res = await fetch("http://localhost:8000/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,

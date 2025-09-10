@@ -23,7 +23,7 @@ from utils.database import (
     get_knowledge_bases
 )
 
-from utils.document_processing import get_retriever, process_and_chunk_file, get_compatible_knowledge_bases
+from utils.document_processing import get_retriever, process_and_chunk_file, get_compatible_knowledge_bases, get_automatic_chunking_strategy
 
 app = FastAPI()
 
@@ -303,15 +303,18 @@ def rag_query(req: RAGQueryRequest):
 
 @app.post("/upload")
 async def upload_and_process_file(
+        current_user: Annotated[User, Depends(get_current_active_user)],
         file: UploadFile = File(...),
         embedding_model_name: str = Form(...),
-        chunking_strategy_name: str = Form(...),
         chunk_size: int = Form(1000),
         chunk_overlap: int = Form(200)
 ):
     # Always generate kb_name from the file name
     base_name = os.path.splitext(file.filename)[0].lower().replace(' ', '_')
     kb_name = f"kb_{base_name}"
+    
+    # Automatically determine chunking strategy based on embedding model
+    chunking_strategy_name = get_automatic_chunking_strategy(embedding_model_name)
 
     # Save file temporarily to disk for processing if needed
     temp_dir = "temp_uploads"
@@ -329,7 +332,8 @@ async def upload_and_process_file(
                 embedding_model_name=embedding_model_name,
                 chunking_strategy_name=chunking_strategy_name,
                 chunk_size=chunk_size,
-                chunk_overlap=chunk_overlap
+                chunk_overlap=chunk_overlap,
+                created_by=current_user.username
             )
 
         return JSONResponse(content=result)
@@ -343,11 +347,17 @@ async def upload_and_process_file(
             os.remove(file_path)
 
 @app.get("/knowledge_bases")
-def list_knowledge_bases():
-    kbs = get_knowledge_bases()
+def list_knowledge_bases(current_user: Annotated[User, Depends(get_current_active_user)]):
+    kbs = get_knowledge_bases(current_user.username)
     return kbs
 
 @app.get("/knowledge_bases/compatible")
-def get_compatible_kbs(embedding_model: str):
-    kbs = get_compatible_knowledge_bases(embedding_model)
-    return kbs
+def get_compatible_kbs(embedding_model: str, current_user: Annotated[User, Depends(get_current_active_user)]):
+    # Get all compatible knowledge bases from filesystem
+    all_kbs = get_compatible_knowledge_bases(embedding_model)
+    # Filter by user using database
+    user_kbs = get_knowledge_bases(current_user.username)
+    user_kb_names = [kb["name"] for kb in user_kbs]
+    # Return only KBs that exist in filesystem AND belong to user
+    compatible_user_kbs = [kb for kb in all_kbs if kb in user_kb_names]
+    return compatible_user_kbs

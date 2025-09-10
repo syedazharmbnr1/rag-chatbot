@@ -3,7 +3,7 @@ from psycopg2 import IntegrityError, sql
 from urllib.parse import urlparse
 from typing import List, Dict, Any, Optional, Tuple
 
-DATABASE_URL = "postgresql://postgres:789456123@localhost:5432/chatbot-database"  # Update this accordingly
+DATABASE_URL = "postgresql://postgres:Kkiraak1234@localhost:5432/chatbot-database-v3"  # Update this accordingly
 
 def create_database_if_not_exists_from_url(database_url):
     try:
@@ -127,9 +127,16 @@ def init_database():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             document_count INTEGER DEFAULT 0,
             embedding_model TEXT NOT NULL,
-            chunking_strategy TEXT NOT NULL
+            chunking_strategy TEXT NOT NULL,
+            created_by TEXT NOT NULL DEFAULT 'admin'
         );
         ''')
+
+        # Ensure created_by column exists in knowledge_bases table
+        cursor.execute("""
+        ALTER TABLE knowledge_bases
+        ADD COLUMN IF NOT EXISTS created_by TEXT NOT NULL DEFAULT 'admin'
+        """)
 
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS documents (
@@ -345,14 +352,14 @@ def delete_conversation(conversation_id: int) -> None:
     conn.commit()
     conn.close()
 
-def register_knowledge_base(name: str, embedding_model: str, chunking_strategy: str, description: str = "") -> int:
+def register_knowledge_base(name: str, embedding_model: str, chunking_strategy: str, description: str = "", created_by: str = "admin") -> int:
     conn = create_connection()
     cursor = conn.cursor()
     try:
         cursor.execute("""
-        INSERT INTO knowledge_bases (name, description, embedding_model, chunking_strategy)
-        VALUES (%s, %s, %s, %s) RETURNING id
-        """, (name, description, embedding_model, chunking_strategy))
+        INSERT INTO knowledge_bases (name, description, embedding_model, chunking_strategy, created_by)
+        VALUES (%s, %s, %s, %s, %s) RETURNING id
+        """, (name, description, embedding_model, chunking_strategy, created_by))
         kb_id = cursor.fetchone()[0]
         conn.commit()
         return kb_id
@@ -364,14 +371,30 @@ def register_knowledge_base(name: str, embedding_model: str, chunking_strategy: 
     finally:
         conn.close()
 
-def get_knowledge_bases() -> List[Dict[str, Any]]:
+def get_knowledge_bases(user_name: str = None) -> List[Dict[str, Any]]:
     conn = create_connection()
     cursor = conn.cursor()
-    cursor.execute("""
-    SELECT id, name, description, created_at, document_count, embedding_model, chunking_strategy
-    FROM knowledge_bases
-    ORDER BY created_at DESC
-    """)
+    
+    if user_name == "admin":
+        # Admin sees all knowledge bases
+        cursor.execute("""
+        SELECT id, name, description, created_at, document_count, embedding_model, chunking_strategy, created_by
+        FROM knowledge_bases
+        ORDER BY created_at DESC
+        """)
+    elif user_name:
+        # Regular users see only their knowledge bases
+        cursor.execute("""
+        SELECT id, name, description, created_at, document_count, embedding_model, chunking_strategy, created_by
+        FROM knowledge_bases
+        WHERE created_by = %s
+        ORDER BY created_at DESC
+        """, (user_name,))
+    else:
+        # Fallback - no knowledge bases
+        conn.close()
+        return []
+
     rows = cursor.fetchall()
     conn.close()
     return [
@@ -382,7 +405,8 @@ def get_knowledge_bases() -> List[Dict[str, Any]]:
             "created_at": row[3],
             "document_count": row[4],
             "embedding_model": row[5],
-            "chunking_strategy": row[6]
+            "chunking_strategy": row[6],
+            "created_by": row[7]
         } for row in rows
     ]
 

@@ -27,9 +27,7 @@ logger = logging.getLogger("rag-chatbot.document_processing")
 # Define enums for embedding models and chunking strategies
 class EmbeddingModel(Enum):
     OPEN_AI = "text-embedding-3-small"
-    DEEPSEEK = "deepseek-r1:latest"
-    LLAMA_3_2_1B = "llama3.2:latest"     # ADD THIS
-    GEMMA_2_2B = "gemma2:2b"
+    LLAMA_3_2_1B = "llama3.2:latest"
 
 class ChunkingStrategy(Enum):
     SEMANTIC_PERCENTILE = "semantic_percentile"
@@ -38,17 +36,13 @@ class ChunkingStrategy(Enum):
 
 class ChatModel(Enum):
     GPT_4O_MINI = "gpt-4o-mini"
-    DEEPSEEK_R1 = "deepseek-r1:latest"
-    LLAMA_3_2_1B = "llama3.2:latest"  # ADD THIS
-    GEMMA_2_2B = "gemma2:2b"
+    LLAMA_3_2_1B = "llama3.2:latest"
 
     def folder_name(self):
         # Explicit folder mapping
         folder_map = {
             ChatModel.GPT_4O_MINI: "openai",
-            ChatModel.DEEPSEEK_R1: "deepseek",
-            ChatModel.LLAMA_3_2_1B: "llama3.2",
-            ChatModel.GEMMA_2_2B: "gemma2"
+            ChatModel.LLAMA_3_2_1B: "llama3.2"
         }
         return folder_map[self]
 
@@ -163,8 +157,7 @@ def initialize_embedding_model(embedding_model):
             embeddings = OpenAIEmbeddings(model=embedding_model)
             logger.debug(f"Initialized OpenAI embedding model: {embedding_model}")
             return embeddings
-        elif embedding_model.startswith("deepseek") or embedding_model.startswith(
-                "llama") or embedding_model.startswith("gemma"):
+        elif embedding_model.startswith("llama"):
             # Ensure Ollama is reachable to avoid long hangs
             try:
                 with urllib.request.urlopen("http://127.0.0.1:11434/api/tags", timeout=3) as resp:
@@ -173,7 +166,7 @@ def initialize_embedding_model(embedding_model):
             except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError) as e:
                 raise ValueError(f"Ollama service is not reachable on 127.0.0.1:11434: {e}")
 
-            # Use langchain_ollama for all Ollama models
+            # Use langchain_ollama for Llama models
             embeddings = OllamaEmbeddings(model=embedding_model)
             logger.debug(f"Initialized Ollama embedding model: {embedding_model}")
             return embeddings
@@ -255,10 +248,6 @@ def get_embedding_folder(embedding_model: str) -> str:
         return "openai"
     elif embedding_model.startswith("llama"):
         return "llama3.2"
-    elif embedding_model.startswith("deepseek"):
-        return "deepseek"
-    elif embedding_model.startswith("gemma"):
-        return "gemma2"
     else:
         return "other"
 
@@ -266,6 +255,15 @@ def get_faiss_index_path(kb_name: str, embedding_model: str) -> str:
     """Get the full FAISS index path for a KB with specific embedding model"""
     folder = get_embedding_folder(embedding_model)
     return f"{folder}/FAISS_Index/{kb_name}"
+
+def get_automatic_chunking_strategy(embedding_model: str) -> str:
+    """Get the automatic chunking strategy based on embedding model"""
+    if embedding_model.startswith("text-embedding"):  # GPT/OpenAI models
+        return "semantic_percentile"
+    elif embedding_model.startswith("llama"):  # Llama models
+        return "recursive"
+    else:
+        return "recursive"  # Default fallback
 
 
 def process_and_chunk_file(
@@ -275,6 +273,7 @@ def process_and_chunk_file(
         chunking_strategy_name,
         chunk_size=1000,
         chunk_overlap=200,
+        created_by="admin",
 ):
     """Process a file and chunk it into documents for indexing."""
     logger.info(f"Processing file {file.name} for knowledge base {kb_name}")
@@ -292,7 +291,8 @@ def process_and_chunk_file(
         kb_id = register_knowledge_base(
             name=kb_name,
             embedding_model=embedding_model_name,
-            chunking_strategy=chunking_strategy_name
+            chunking_strategy=chunking_strategy_name,
+            created_by=created_by
         )
         logger.debug(f"Registered knowledge base with ID: {kb_id}")
 
@@ -504,7 +504,8 @@ def auto_create_knowledge_base_if_needed(embedding_model_name: str = "text-embed
             name=kb_name,
             embedding_model=embedding_model_name,
             chunking_strategy="semantic_percentile",  # Changed to match main processing
-            description="Default knowledge base"
+            description="Default knowledge base",
+            created_by="admin"
         )
         
         # Create an empty FAISS index directory for this knowledge base

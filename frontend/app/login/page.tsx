@@ -58,7 +58,7 @@ export default function LoginPage() {
           
           {/* Header */}
           <div className="text-center mb-8">
-            <img src='/ragchatbotbgremoved.png' alt='logo'className="w-48 h-48 mx-auto rounded-full"/>
+            <img src='/rag-logo.png' alt='logo'className=" h-48 mx-auto rounded-full"/>
             {/* <h1 className="text-2xl font-bold text-slate-800 mb-2">Welcome back</h1>
             <p className="text-slate-600 text-sm">Sign in to continue to your dashboard</p> */}
           </div>

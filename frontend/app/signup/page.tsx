@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const API_URL = 'http://34.10.53.15:8001';
+const API_URL = 'http://localhost:8000';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -95,7 +95,7 @@ export default function SignupPage() {
           
           {/* Header */}
           <div className="text-center mb-8">
-            <img src='/ragchatbotbgremoved.png' alt='logo'className="w-48 h-48 mx-auto rounded-full"/>
+            <img src='/rag-logo.png' alt='logo'className=" h-48 mx-auto rounded-full"/>
             {/* <h1 className="text-2xl font-bold text-slate-800 mb-2">Create your account</h1>
             <p className="text-slate-600 text-sm">Join us and start your journey today</p> */}
           </div>
